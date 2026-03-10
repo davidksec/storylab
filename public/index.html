@@ -323,17 +323,68 @@ async function renderBrowse() {
   if (readerId) { await renderReader(readerId); return; }
 
   const app = document.getElementById('app');
-  app.innerHTML = `<div id="browseShell"></div>`;
+
+  // Only build the search controls once; preserve them on subsequent calls
+  if (!document.getElementById('browseShell')) {
+    app.innerHTML = `
+      <div id="browseShell">
+        <div class="card">
+          <h2 style="margin-bottom:1rem">Search Stories</h2>
+          <div class="search-row">
+            <input type="text" id="searchInput" placeholder="Search by keyword, title or author…">
+            <button class="btn btn-ghost" id="clearSearchBtn">Clear</button>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Trigger word filters — hide stories containing:</label>
+            <div class="search-row" style="margin-bottom:.4rem">
+              <input type="text" id="triggerInput" placeholder="Type a word and press Enter…">
+              <button class="btn btn-danger" id="addTriggerBtn">Add Filter</button>
+            </div>
+            <div class="hint">Any story containing one of these words will be hidden from results.</div>
+            <div id="trigChipsArea" class="chips" style="margin-top:.6rem"></div>
+          </div>
+        </div>
+        <div id="browseResults"></div>
+      </div>`;
+
+    document.getElementById('searchInput').value = searchQ;
+
+    let searchTimer;
+    document.getElementById('searchInput').addEventListener('input', e => {
+      searchQ = e.target.value;
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(updateBrowseResults, 400);
+    });
+    document.getElementById('clearSearchBtn').addEventListener('click', () => {
+      searchQ = '';
+      document.getElementById('searchInput').value = '';
+      updateBrowseResults();
+    });
+    document.getElementById('triggerInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') addTrigger();
+    });
+    document.getElementById('addTriggerBtn').addEventListener('click', addTrigger);
+  }
+
+  await updateBrowseResults();
+}
+
+async function updateBrowseResults() {
+  const resultsEl = document.getElementById('browseResults');
+  if (!resultsEl) return;
+
+  const trigChipsArea = document.getElementById('trigChipsArea');
+  if (trigChipsArea) {
+    trigChipsArea.innerHTML = triggers.length
+      ? triggers.map((t,i) => `<span class="chip trigger">${esc(t)}<button onclick="removeTrigger(${i})">✕</button></span>`).join('')
+      : '<span style="font-size:.75rem;color:var(--muted)">None active</span>';
+  }
 
   try {
     const params = new URLSearchParams();
     if (searchQ) params.set('q', searchQ);
     if (triggers.length) params.set('triggers', triggers.join(','));
     const stories = await api('/api/stories?' + params);
-
-    const trigChips = triggers.length
-      ? triggers.map((t,i) => `<span class="chip trigger">${esc(t)}<button onclick="removeTrigger(${i})">✕</button></span>`).join('')
-      : '<span style="font-size:.75rem;color:var(--muted)">None active</span>';
 
     const hidden = triggers.length
       ? `<span style="color:var(--accent2)">(${await hiddenCount()} hidden by filters)</span>` : '';
@@ -342,27 +393,11 @@ async function renderBrowse() {
       ? stories.map(s => storyCard(s)).join('')
       : `<div class="empty"><div class="icon">📭</div><div>${searchQ ? 'No stories match your search.' : 'No stories yet — be the first to submit one!'}</div></div>`;
 
-    document.getElementById('browseShell').innerHTML = `
-      <div class="card">
-        <h2 style="margin-bottom:1rem">Search Stories</h2>
-        <div class="search-row">
-          <input type="text" id="searchInput" placeholder="Search by keyword, title or author…" value="${esc(searchQ)}" oninput="searchQ=this.value;renderBrowse()">
-          <button class="btn btn-ghost" onclick="searchQ='';document.getElementById('searchInput').value='';renderBrowse()">Clear</button>
-        </div>
-        <div class="field" style="margin-bottom:0">
-          <label>Trigger word filters — hide stories containing:</label>
-          <div class="search-row" style="margin-bottom:.4rem">
-            <input type="text" id="triggerInput" placeholder="Type a word and press Enter…" onkeydown="if(event.key==='Enter')addTrigger()">
-            <button class="btn btn-danger" onclick="addTrigger()">Add Filter</button>
-          </div>
-          <div class="hint">Any story containing one of these words will be hidden from results.</div>
-          <div class="chips" style="margin-top:.6rem">${trigChips}</div>
-        </div>
-      </div>
+    resultsEl.innerHTML = `
       <div class="results-meta">${stories.length} stor${stories.length===1?'y':'ies'} shown ${hidden}</div>
       ${cards}`;
   } catch(e) {
-    document.getElementById('browseShell').innerHTML = `<div class="empty"><div class="icon">⚠️</div><div>Could not load stories: ${esc(e.message)}</div></div>`;
+    resultsEl.innerHTML = `<div class="empty"><div class="icon">⚠️</div><div>Could not load stories: ${esc(e.message)}</div></div>`;
   }
 }
 
@@ -403,13 +438,13 @@ function addTrigger() {
   triggers.push(val);
   localStorage.setItem('sl_triggers', JSON.stringify(triggers));
   if(input) input.value = '';
-  renderBrowse();
+  updateBrowseResults();
 }
 
 function removeTrigger(i) {
   triggers.splice(i, 1);
   localStorage.setItem('sl_triggers', JSON.stringify(triggers));
-  renderBrowse();
+  updateBrowseResults();
 }
 
 // ── Reader ────────────────────────────────────────────────

@@ -47,7 +47,7 @@ function requireAdmin(req, res, next) {
 
 // ── Register ──────────────────────────────────────────────
 app.post('/api/register', async (req, res) => {
-  const { username, password } = req.body || {};
+  const { username, password, email } = req.body || {};
   if (!username?.trim() || !password)
     return res.status(400).json({ error: 'Username and password required' });
   if (username.trim().length < 3)
@@ -62,6 +62,7 @@ app.post('/api/register', async (req, res) => {
   try {
     const user = await db.users.insertAsync({
       username: username.trim(), password: hash, is_admin,
+      email: email?.trim().toLowerCase() || '',
       joined: new Date().toISOString().slice(0, 10),
     });
     const payload = { id: user._id, username: user.username, is_admin: user.is_admin };
@@ -116,7 +117,7 @@ app.get('/api/stories', optAuth, async (req, res) => {
   let out   = await enrich(list, uid);
   out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  const { q, triggers } = req.query;
+  const { q, triggers, page, limit } = req.query;
   if (q) {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     out = out.filter(s => {
@@ -131,7 +132,14 @@ app.get('/api/stories', optAuth, async (req, res) => {
       return !ts.some(t => hay.includes(t));
     });
   }
-  res.json(out);
+
+  const total    = out.length;
+  const pageSize = Math.min(parseInt(limit) || 20, 100);
+  const pageNum  = Math.max(1, parseInt(page) || 1);
+  const pages    = Math.ceil(total / pageSize) || 1;
+  out = out.slice((pageNum - 1) * pageSize, pageNum * pageSize);
+
+  res.json({ stories: out, total, page: pageNum, pages });
 });
 
 app.get('/api/stories/:id', optAuth, async (req, res) => {
@@ -222,7 +230,12 @@ app.delete('/api/comments/:id', requireAuth, async (req, res) => {
 // ── Admin ─────────────────────────────────────────────────
 app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
   const list = await db.users.findAsync({});
-  res.json(list.map(u => ({ id: u._id, username: u.username, is_admin: u.is_admin, joined: u.joined })));
+  const stories = await db.stories.findAsync({});
+  res.json(list.map(u => ({
+    id: u._id, username: u.username, is_admin: u.is_admin,
+    email: u.email || '', joined: u.joined,
+    story_count: stories.filter(s => s.author_id === u._id).length,
+  })));
 });
 
 app.delete('/api/admin/users/:id', requireAuth, requireAdmin, async (req, res) => {
@@ -239,6 +252,16 @@ app.delete('/api/admin/users/:id', requireAuth, requireAdmin, async (req, res) =
 
 app.patch('/api/admin/users/:id/promote', requireAuth, requireAdmin, async (req, res) => {
   await db.users.updateAsync({ _id: req.params.id }, { $set: { is_admin: 1 } }, {});
+  res.json({ ok: true });
+});
+
+// Admin: set a user's password directly (placeholder until email flow is added)
+app.patch('/api/admin/users/:id/reset-password', requireAuth, requireAdmin, async (req, res) => {
+  const { new_password } = req.body || {};
+  if (!new_password || new_password.length < 6)
+    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  const hash = bcrypt.hashSync(new_password, 10);
+  await db.users.updateAsync({ _id: req.params.id }, { $set: { password: hash } }, {});
   res.json({ ok: true });
 });
 

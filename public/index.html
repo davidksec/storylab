@@ -224,8 +224,9 @@ let page     = 'browse';
 let readerId = null;
 let triggers = JSON.parse(localStorage.getItem('sl_triggers') || '[]');
 let searchQ  = '';
-let authTab  = 'login';
-let adminTab = 'users';
+let authTab   = 'login';
+let adminTab  = 'users';
+let browsePage = 1;
 let submitDraft = { step: 1, title: '', genre: '', tags: '', darkness: '', light: '', light_status: 'found' };
 
 // ── API client ────────────────────────────────────────────
@@ -352,13 +353,15 @@ async function renderBrowse() {
     let searchTimer;
     document.getElementById('searchInput').addEventListener('input', e => {
       searchQ = e.target.value;
+      browsePage = 1;
       clearTimeout(searchTimer);
-      searchTimer = setTimeout(updateBrowseResults, 400);
+      searchTimer = setTimeout(() => updateBrowseResults(true), 400);
     });
     document.getElementById('clearSearchBtn').addEventListener('click', () => {
       searchQ = '';
+      browsePage = 1;
       document.getElementById('searchInput').value = '';
-      updateBrowseResults();
+      updateBrowseResults(true);
     });
     document.getElementById('triggerInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') addTrigger();
@@ -369,9 +372,11 @@ async function renderBrowse() {
   await updateBrowseResults();
 }
 
-async function updateBrowseResults() {
+async function updateBrowseResults(reset = true) {
   const resultsEl = document.getElementById('browseResults');
   if (!resultsEl) return;
+
+  if (reset) browsePage = 1;
 
   const trigChipsArea = document.getElementById('trigChipsArea');
   if (trigChipsArea) {
@@ -384,31 +389,35 @@ async function updateBrowseResults() {
     const params = new URLSearchParams();
     if (searchQ) params.set('q', searchQ);
     if (triggers.length) params.set('triggers', triggers.join(','));
-    const stories = await api('/api/stories?' + params);
+    params.set('page', browsePage);
+    params.set('limit', '20');
+    const { stories, total, pages } = await api('/api/stories?' + params);
 
-    const hidden = triggers.length
-      ? `<span style="color:var(--accent2)">(${await hiddenCount()} hidden by filters)</span>` : '';
+    const cards = stories.map(s => storyCard(s)).join('');
+    const loadMoreBtn = browsePage < pages
+      ? `<button class="btn btn-ghost" style="width:100%;margin-top:.75rem" onclick="loadMoreStories()">Load more stories (${total - browsePage * 20} remaining)</button>`
+      : '';
 
-    const cards = stories.length
-      ? stories.map(s => storyCard(s)).join('')
-      : `<div class="empty"><div class="icon">📭</div><div>${searchQ ? 'No stories match your search.' : 'No stories yet — be the first to submit one!'}</div></div>`;
-
-    resultsEl.innerHTML = `
-      <div class="results-meta">${stories.length} stor${stories.length===1?'y':'ies'} shown ${hidden}</div>
-      ${cards}`;
+    if (reset) {
+      const empty = total === 0
+        ? `<div class="empty"><div class="icon">📭</div><div>${searchQ ? 'No stories match your search.' : 'No stories yet — be the first to submit one!'}</div></div>`
+        : '';
+      resultsEl.innerHTML = `
+        <div class="results-meta" id="browseResultsMeta">${total} stor${total===1?'y':'ies'}${searchQ ? ` matching "<strong>${esc(searchQ)}</strong>"` : ''}${triggers.length ? ` · ${triggers.length} filter${triggers.length>1?'s':''} active` : ''}</div>
+        <div id="storyCards">${cards || empty}</div>
+        <div id="loadMoreArea">${loadMoreBtn}</div>`;
+    } else {
+      document.getElementById('storyCards').insertAdjacentHTML('beforeend', cards);
+      document.getElementById('loadMoreArea').innerHTML = loadMoreBtn;
+    }
   } catch(e) {
-    resultsEl.innerHTML = `<div class="empty"><div class="icon">⚠️</div><div>Could not load stories: ${esc(e.message)}</div></div>`;
+    if (reset) resultsEl.innerHTML = `<div class="empty"><div class="icon">⚠️</div><div>Could not load stories: ${esc(e.message)}</div></div>`;
   }
 }
 
-async function hiddenCount() {
-  try {
-    const all = await api('/api/stories');
-    const params = new URLSearchParams();
-    if (triggers.length) params.set('triggers', triggers.join(','));
-    const shown = await api('/api/stories?' + params);
-    return all.length - shown.length;
-  } catch { return 0; }
+async function loadMoreStories() {
+  browsePage++;
+  await updateBrowseResults(false);
 }
 
 function storyCard(s, clickable = true) {
@@ -438,13 +447,13 @@ function addTrigger() {
   triggers.push(val);
   localStorage.setItem('sl_triggers', JSON.stringify(triggers));
   if(input) input.value = '';
-  updateBrowseResults();
+  updateBrowseResults(true);
 }
 
 function removeTrigger(i) {
   triggers.splice(i, 1);
   localStorage.setItem('sl_triggers', JSON.stringify(triggers));
-  updateBrowseResults();
+  updateBrowseResults(true);
 }
 
 // ── Reader ────────────────────────────────────────────────
@@ -824,17 +833,20 @@ async function renderAdmin() {
       document.getElementById('adminContent').innerHTML = users.map(u => `
         <div class="manage-row">
           <div class="info">
-            <h4>${esc(u.username)} ${u.is_admin ? '⚡ Admin' : ''}</h4>
-            <p>Joined ${fmtDate(u.joined)} · ID ${u.id}</p>
+            <h4>${esc(u.username)} ${u.is_admin ? '<span style="color:var(--warn);font-size:.75rem">⚡ Admin</span>' : ''}</h4>
+            <p>
+              ${u.email ? `✉ ${esc(u.email)} · ` : '<span style="color:var(--accent2)">No email · </span>'}
+              Joined ${fmtDate(u.joined)} · ${u.story_count} stor${u.story_count===1?'y':'ies'}
+            </p>
           </div>
           <div class="actions">
+            <button class="btn btn-ghost btn-sm" onclick="adminResetPassword('${u.id}','${esc(u.username)}')">Reset Password</button>
             ${!u.is_admin ? `<button class="btn btn-ghost btn-sm" onclick="promoteUser('${u.id}')">Make Admin</button>` : ''}
             ${u.id !== user.id ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Delete</button>` : '<span style="font-size:.75rem;color:var(--muted)">(you)</span>'}
           </div>
         </div>`).join('') || '<div class="empty"><div class="icon">👤</div><div>No users found.</div></div>';
     } else {
-      const params = new URLSearchParams();
-      const stories = await api('/api/stories');
+      const { stories } = await api('/api/stories?limit=1000');
       document.getElementById('adminContent').innerHTML = stories.map(s => `
         <div class="manage-row">
           <div class="info">
@@ -870,6 +882,16 @@ async function adminDeleteStory(id) {
   catch(e) { toast(e.message, 'err'); }
 }
 
+async function adminResetPassword(id, username) {
+  const pw = prompt(`Set a new password for "${username}" (min 6 characters):`);
+  if (pw === null) return;
+  if (pw.length < 6) { toast('Password must be at least 6 characters.', 'err'); return; }
+  try {
+    await api(`/api/admin/users/${id}/reset-password`, 'PATCH', { new_password: pw });
+    toast(`Password updated for ${username}.`);
+  } catch(e) { toast(e.message, 'err'); }
+}
+
 // ── Auth modal ────────────────────────────────────────────
 function openModal() {
   document.getElementById('modal').classList.remove('hidden');
@@ -899,6 +921,7 @@ function switchAuthTab(tab) {
     content.innerHTML = `
       <p class="modal-title">Create an account</p>
       <div class="field"><label>Username</label><input type="text" id="authUser" placeholder="Choose a username (min 3 chars)"></div>
+      <div class="field"><label>Email <span style="font-weight:400;text-transform:none">(optional — for future password reset)</span></label><input type="text" id="authEmail" placeholder="your@email.com"></div>
       <div class="field"><label>Password</label><input type="password" id="authPass" placeholder="Choose a password (min 6 chars)" onkeydown="if(event.key==='Enter')doRegister()"></div>
       <div id="authErr" class="error-msg" style="margin-bottom:.8rem"></div>
       <button class="btn btn-primary" style="width:100%" onclick="doRegister()">Create Account</button>
@@ -923,9 +946,10 @@ async function doLogin() {
 async function doRegister() {
   const username = document.getElementById('authUser').value.trim();
   const password = document.getElementById('authPass').value;
+  const email    = document.getElementById('authEmail')?.value.trim() || '';
   const err = document.getElementById('authErr');
   try {
-    const data = await api('/api/register', 'POST', { username, password });
+    const data = await api('/api/register', 'POST', { username, password, email });
     saveAuth(data);
     closeModal();
     toast(`Account created! Welcome, ${data.username}${data.is_admin ? ' (you\'re admin!)' : ''}!`);

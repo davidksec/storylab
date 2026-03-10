@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StoryLab</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f0f13;
+      --surface:  #1a1a24;
+      --surface2: #22222f;
+      --border:   #2e2e3e;
+      --accent:   #7c6af7;
+      --accent2:  #e96479;
+      --success:  #4caf87;
+      --warn:     #f0a050;
+      --text:     #e8e8f0;
+      --muted:    #888899;
+      --r:        10px;
+    }
+
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Header ─────────────────────────────── */
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 2rem; display: flex; align-items: center; justify-content: space-between;
+      height: 58px; position: sticky; top: 0; z-index: 200;
+    }
+    .logo { font-size: 1.35rem; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
+    .logo span { color: var(--accent2); }
+    nav { display: flex; gap: 3px; }
+    nav button { background: none; border: none; color: var(--muted); padding: .4rem .95rem; border-radius: 8px; font-size: .88rem; cursor: pointer; transition: .15s; }
+    nav button:hover { background: var(--surface2); color: var(--text); }
+    nav button.active { background: var(--accent); color: #fff; }
+    .auth-area { display: flex; align-items: center; gap: .6rem; }
+    .username-chip { font-size: .82rem; color: var(--muted); background: var(--surface2); padding: .3rem .8rem; border-radius: 20px; border: 1px solid var(--border); }
+
+    /* ── Layout ──────────────────────────────── */
+    main { max-width: 880px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+
+    /* ── Buttons ─────────────────────────────── */
+    .btn { display: inline-flex; align-items: center; gap: .35rem; padding: .55rem 1.25rem; border: none; border-radius: 8px; font-size: .88rem; font-weight: 600; cursor: pointer; transition: opacity .15s, transform .1s; }
+    .btn:hover { opacity: .85; transform: translateY(-1px); }
+    .btn:active { transform: none; }
+    .btn-primary { background: var(--accent);  color: #fff; }
+    .btn-danger  { background: var(--accent2); color: #fff; }
+    .btn-ghost   { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-sm      { padding: .3rem .8rem; font-size: .78rem; }
+    .btn-icon    { background: none; border: 1px solid var(--border); color: var(--muted); padding: .4rem .9rem; border-radius: 8px; font-size: .82rem; cursor: pointer; transition: .15s; display: inline-flex; align-items: center; gap: .3rem; }
+    .btn-icon:hover { background: var(--surface2); color: var(--text); }
+    .btn-icon.voted { border-color: var(--accent); color: var(--accent); background: rgba(124,106,247,.1); }
+
+    /* ── Cards / Forms ───────────────────────── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.8rem; margin-bottom: 1.4rem; }
+    h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1.4rem; }
+    .field { margin-bottom: 1.1rem; }
+    label { display: block; font-size: .78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: .4rem; }
+    input[type=text], input[type=password], textarea, select {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-size: .93rem; padding: .6rem .9rem; outline: none; font-family: inherit; transition: border-color .15s;
+    }
+    input:focus, textarea:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 200px; line-height: 1.65; }
+    .hint { font-size: .75rem; color: var(--muted); margin-top: .3rem; }
+    .error-msg { color: var(--accent2); font-size: .83rem; margin-top: .5rem; }
+
+    /* ── Story cards ─────────────────────────── */
+    .story-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem 1.4rem; margin-bottom: .85rem; cursor: pointer; transition: border-color .15s, transform .1s; }
+    .story-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .sc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: .4rem; }
+    .sc-header h3 { font-size: 1.05rem; font-weight: 600; }
+    .sc-meta { font-size: .76rem; color: var(--muted); margin-bottom: .5rem; }
+    .sc-excerpt { font-size: .86rem; color: var(--muted); line-height: 1.55; }
+    .sc-footer { display: flex; align-items: center; gap: .75rem; margin-top: .75rem; flex-wrap: wrap; }
+    .genre-badge { font-size: .7rem; font-weight: 700; padding: .18rem .55rem; border-radius: 20px; background: var(--surface2); color: var(--accent); border: 1px solid var(--accent); white-space: nowrap; flex-shrink: 0; }
+    .stat { font-size: .76rem; color: var(--muted); display: flex; align-items: center; gap: .2rem; }
+
+    /* ── Chips ───────────────────────────────── */
+    .chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
+    .chip { display: inline-flex; align-items: center; gap: .25rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: .2rem .65rem; font-size: .75rem; }
+    .chip.trigger { border-color: var(--accent2); color: var(--accent2); }
+    .chip button { background: none; border: none; cursor: pointer; color: inherit; font-size: .8rem; line-height: 1; opacity: .7; }
+    .chip button:hover { opacity: 1; }
+
+    /* ── Search bar ──────────────────────────── */
+    .search-row { display: flex; gap: .65rem; margin-bottom: .9rem; flex-wrap: wrap; }
+    .search-row input { flex: 1; min-width: 180px; }
+    .results-meta { font-size: .79rem; color: var(--muted); margin-bottom: .9rem; }
+
+    /* ── Highlight ───────────────────────────── */
+    mark { background: rgba(124,106,247,.28); color: var(--accent); border-radius: 3px; padding: 0 2px; }
+
+    /* ── Empty ───────────────────────────────── */
+    .empty { text-align: center; padding: 3.5rem 1rem; color: var(--muted); }
+    .empty .icon { font-size: 2.4rem; margin-bottom: .75rem; }
+
+    /* ── Reader ──────────────────────────────── */
+    .reader-back { margin-bottom: 1.4rem; }
+    .reader-header { margin-bottom: 1.8rem; }
+    .reader-header h1 { font-size: 1.85rem; font-weight: 700; line-height: 1.3; margin-bottom: .5rem; }
+    .reader-header .meta { color: var(--muted); font-size: .84rem; }
+    .reader-actions { display: flex; gap: .6rem; align-items: center; margin-bottom: 1.6rem; flex-wrap: wrap; }
+    .reader-body { font-size: 1.05rem; line-height: 1.9; color: #d0d0e0; white-space: pre-wrap; word-break: break-word; }
+
+    /* ── Comments ────────────────────────────── */
+    .comments-section { margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 1.8rem; }
+    .comments-section h3 { font-size: 1rem; font-weight: 600; margin-bottom: 1.2rem; }
+    .comment { background: var(--surface2); border-radius: 10px; padding: .9rem 1.1rem; margin-bottom: .7rem; }
+    .comment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem; }
+    .comment-author { font-size: .8rem; font-weight: 700; color: var(--accent); }
+    .comment-date   { font-size: .72rem; color: var(--muted); }
+    .comment-body   { font-size: .88rem; line-height: 1.55; }
+    .comment-form { margin-top: 1.2rem; }
+    .comment-form textarea { min-height: 80px; margin-bottom: .6rem; }
+
+    /* ── Manage table ────────────────────────── */
+    .manage-row { display: flex; justify-content: space-between; align-items: center; background: var(--surface2); border-radius: 10px; padding: .85rem 1.1rem; margin-bottom: .6rem; gap: 1rem; }
+    .manage-row .info h4 { font-size: .92rem; margin-bottom: .15rem; }
+    .manage-row .info p  { font-size: .74rem; color: var(--muted); }
+    .manage-row .actions { display: flex; gap: .5rem; flex-shrink: 0; }
+
+    /* ── Admin ───────────────────────────────── */
+    .admin-tabs { display: flex; gap: 4px; margin-bottom: 1.4rem; }
+    .admin-tab { background: none; border: 1px solid var(--border); color: var(--muted); padding: .35rem 1rem; border-radius: 8px; font-size: .84rem; cursor: pointer; transition: .15s; }
+    .admin-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ── Modal ───────────────────────────────── */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 500; }
+    .modal-backdrop.hidden { display: none; }
+    .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; width: min(400px, 90vw); }
+    .modal-tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; }
+    .modal-tab { flex: 1; background: none; border: 1px solid var(--border); color: var(--muted); padding: .4rem; border-radius: 8px; font-size: .88rem; cursor: pointer; transition: .15s; }
+    .modal-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .modal-title { font-size: 1.15rem; font-weight: 600; margin-bottom: 1.3rem; }
+
+    /* ── Toast ───────────────────────────────── */
+    #toast { position: fixed; bottom: 1.8rem; right: 1.8rem; padding: .7rem 1.3rem; border-radius: 10px; font-size: .88rem; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 999; }
+    #toast.show { opacity: 1; }
+    #toast.ok  { background: var(--success); color: #fff; }
+    #toast.err { background: var(--accent2); color: #fff; }
+
+    /* ── Multi-step submit ───────────────────── */
+    .step-progress { display: flex; align-items: flex-start; margin-bottom: 2rem; }
+    .step-item { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+    .step-item + .step-item::before { content: ''; position: absolute; top: 13px; right: 50%; left: -50%; height: 2px; background: var(--border); }
+    .step-item.done + .step-item::before { background: var(--accent); }
+    .step-dot { width: 28px; height: 28px; border-radius: 50%; background: var(--surface2); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 700; position: relative; z-index: 1; margin-bottom: .35rem; }
+    .step-item.active .step-dot { border-color: var(--accent); color: var(--accent); }
+    .step-item.done .step-dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .step-label { font-size: .68rem; color: var(--muted); text-align: center; line-height: 1.3; }
+    .step-item.active .step-label { color: var(--text); }
+    .step-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 1.8rem; }
+    .step-heading { font-size: 1.3rem; font-weight: 700; margin-bottom: .5rem; }
+    .step-desc { color: var(--muted); font-size: .88rem; line-height: 1.65; margin-bottom: 1.5rem; }
+
+    /* ── Story sections ──────────────────────── */
+    .story-section { border-radius: 10px; padding: 1.3rem 1.4rem; margin-bottom: 1rem; }
+    .section-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .9px; margin-bottom: .8rem; display: flex; align-items: center; gap: .35rem; }
+    .darkness-section { background: rgba(233,100,121,.07); border: 1px solid rgba(233,100,121,.22); }
+    .darkness-section .section-label { color: #e96479; }
+    .light-section { background: rgba(240,180,80,.07); border: 1px solid rgba(240,180,80,.22); }
+    .light-section .section-label { color: #f0b450; }
+    .searching-section { background: rgba(124,106,247,.07); border: 1px solid rgba(124,106,247,.22); }
+    .searching-section .section-label { color: var(--accent); }
+
+    /* ── Light toggle ────────────────────────── */
+    .light-toggle { display: flex; gap: .5rem; margin-bottom: 1.3rem; }
+    .toggle-opt { flex: 1; padding: .75rem .5rem; border-radius: 10px; border: 2px solid var(--border); background: var(--surface2); color: var(--muted); font-size: .83rem; font-weight: 600; cursor: pointer; transition: .15s; text-align: center; }
+    .toggle-opt:hover { border-color: var(--accent); color: var(--text); }
+    .toggle-opt.sel-found { border-color: #f0b450; color: #f0b450; background: rgba(240,180,80,.09); }
+    .toggle-opt.sel-searching { border-color: var(--accent); color: var(--accent); background: rgba(124,106,247,.09); }
+
+    /* ── Print (PDF export) ──────────────────── */
+    @media print {
+      header, .reader-back, .reader-actions, .comments-section, #toast, .modal-backdrop { display: none !important; }
+      body { background: #fff; color: #000; }
+      main { max-width: 100%; padding: 0; }
+      .card { border: none; padding: 0; }
+      .reader-header h1 { color: #000; }
+      .reader-header .meta { color: #555; }
+      .reader-body { color: #111; font-size: 12pt; line-height: 1.8; }
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 0 1rem; }
+      main { padding: 1.5rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Story<span>Lab</span></div>
+  <nav id="nav">
+    <button onclick="go('browse')" data-page="browse" class="active">Browse</button>
+    <button onclick="go('submit')" data-page="submit">Submit</button>
+    <button onclick="go('mine')"   data-page="mine">My Stories</button>
+  </nav>
+  <div class="auth-area" id="authArea"></div>
+</header>
+
+<main id="app"></main>
+
+<div id="modal" class="modal-backdrop hidden">
+  <div class="modal-box">
+    <div class="modal-tabs">
+      <button class="modal-tab active" onclick="switchAuthTab('login')">Login</button>
+      <button class="modal-tab"        onclick="switchAuthTab('register')">Register</button>
+    </div>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────
+let token    = localStorage.getItem('sl_token');
+let user     = JSON.parse(localStorage.getItem('sl_user') || 'null');
+let page     = 'browse';
+let readerId = null;
+let triggers = JSON.parse(localStorage.getItem('sl_triggers') || '[]');
+let searchQ  = '';
+let authTab  = 'login';
+let adminTab = 'users';
+let submitDraft = { step: 1, title: '', genre: '', tags: '', darkness: '', light: '', light_status: 'found' };
+
+// ── API client ────────────────────────────────────────────
+async function api(path, method = 'GET', body = null) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (token) opts.headers['Authorization'] = `Bearer ${token}`;
+  if (body)  opts.body = JSON.stringify(body);
+  const res  = await fetch(path, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// ── Navigation ────────────────────────────────────────────
+function go(p) {
+  page     = p;
+  readerId = null;
+  render();
+}
+
+function render() {
+  renderHeader();
+  switch (page) {
+    case 'browse': renderBrowse(); break;
+    case 'submit': renderSubmit(); break;
+    case 'mine':   renderMine();   break;
+    case 'admin':  renderAdmin();  break;
+  }
+}
+
+function renderHeader() {
+  // Nav active state
+  document.querySelectorAll('nav button').forEach(b => {
+    b.classList.toggle('active', b.dataset.page === page);
+  });
+
+  // Admin tab
+  const adminBtn = document.querySelector('nav button[data-page=admin]');
+  if (user?.is_admin && !adminBtn) {
+    const btn = document.createElement('button');
+    btn.textContent = 'Admin';
+    btn.dataset.page = 'admin';
+    btn.onclick = () => go('admin');
+    document.getElementById('nav').appendChild(btn);
+  } else if (!user?.is_admin && adminBtn) {
+    adminBtn.remove();
+  }
+  if (adminBtn) adminBtn.classList.toggle('active', page === 'admin');
+
+  // Auth area
+  const area = document.getElementById('authArea');
+  if (user) {
+    area.innerHTML = `
+      <span class="username-chip">${esc(user.username)}${user.is_admin ? ' ⚡' : ''}</span>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>`;
+  } else {
+    area.innerHTML = `<button class="btn btn-primary btn-sm" onclick="openModal()">Login / Register</button>`;
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  let out = esc(text);
+  q.trim().split(/\s+/).filter(Boolean).forEach(w => {
+    out = out.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi'), m => `<mark>${m}</mark>`);
+  });
+  return out;
+}
+
+function readingTime(body) {
+  const wc = body.trim().split(/\s+/).length;
+  const mins = Math.max(1, Math.ceil(wc / 200));
+  return `${mins} min read`;
+}
+
+function fmtDate(dt) {
+  return new Date(dt).toLocaleDateString('en-GB', { year:'numeric', month:'short', day:'numeric' });
+}
+
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', 2800);
+}
+
+// ── Browse ────────────────────────────────────────────────
+async function renderBrowse() {
+  if (readerId) { await renderReader(readerId); return; }
+
+  const app = document.getElementById('app');
+  app.innerHTML = `<div id="browseShell"></div>`;
+
+  try {
+    const params = new URLSearchParams();
+    if (searchQ) params.set('q', searchQ);
+    if (triggers.length) params.set('triggers', triggers.join(','));
+    const stories = await api('/api/stories?' + params);
+
+    const trigChips = triggers.length
+      ? triggers.map((t,i) => `<span class="chip trigger">${esc(t)}<button onclick="removeTrigger(${i})">✕</button></span>`).join('')
+      : '<span style="font-size:.75rem;color:var(--muted)">None active</span>';
+
+    const hidden = triggers.length
+      ? `<span style="color:var(--accent2)">(${await hiddenCount()} hidden by filters)</span>` : '';
+
+    const cards = stories.length
+      ? stories.map(s => storyCard(s)).join('')
+      : `<div class="empty"><div class="icon">📭</div><div>${searchQ ? 'No stories match your search.' : 'No stories yet — be the first to submit one!'}</div></div>`;
+
+    document.getElementById('browseShell').innerHTML = `
+      <div class="card">
+        <h2 style="margin-bottom:1rem">Search Stories</h2>
+        <div class="search-row">
+          <input type="text" id="searchInput" placeholder="Search by keyword, title or author…" value="${esc(searchQ)}" oninput="searchQ=this.value;renderBrowse()">
+          <button class="btn btn-ghost" onclick="searchQ='';document.getElementById('searchInput').value='';renderBrowse()">Clear</button>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Trigger word filters — hide stories containing:</label>
+          <div class="search-row" style="margin-bottom:.4rem">
+            <input type="text" id="triggerInput" placeholder="Type a word and press Enter…" onkeydown="if(event.key==='Enter')addTrigger()">
+            <button class="btn btn-danger" onclick="addTrigger()">Add Filter</button>
+          </div>
+          <div class="hint">Any story containing one of these words will be hidden from results.</div>
+          <div class="chips" style="margin-top:.6rem">${trigChips}</div>
+        </div>
+      </div>
+      <div class="results-meta">${stories.length} stor${stories.length===1?'y':'ies'} shown ${hidden}</div>
+      ${cards}`;
+  } catch(e) {
+    document.getElementById('browseShell').innerHTML = `<div class="empty"><div class="icon">⚠️</div><div>Could not load stories: ${esc(e.message)}</div></div>`;
+  }
+}
+
+async function hiddenCount() {
+  try {
+    const all = await api('/api/stories');
+    const params = new URLSearchParams();
+    if (triggers.length) params.set('triggers', triggers.join(','));
+    const shown = await api('/api/stories?' + params);
+    return all.length - shown.length;
+  } catch { return 0; }
+}
+
+function storyCard(s, clickable = true) {
+  const excerpt = s.body.length > 160 ? s.body.slice(0,160).trim()+'…' : s.body;
+  const tagChips = s.tags?.length ? s.tags.map(t => `<span class="chip">${highlight(t, searchQ)}</span>`).join('') : '';
+  return `
+    <div class="story-card" ${clickable ? `onclick="openStory('${s.id}')"` : ''}>
+      <div class="sc-header">
+        <h3>${highlight(s.title, searchQ)}</h3>
+        ${s.genre ? `<span class="genre-badge">${esc(s.genre)}</span>` : ''}
+      </div>
+      <div class="sc-meta">by ${highlight(s.author_name, searchQ)} · ${fmtDate(s.created_at)} · ${readingTime(s.body)}</div>
+      <div class="sc-excerpt">${highlight(excerpt, searchQ)}</div>
+      <div class="sc-footer">
+        <span class="stat">▲ ${s.votes}</span>
+        <span class="stat">💬 ${s.comment_count}</span>
+        ${s.light ? `<span class="chip" style="${s.light_status==='found' ? 'border-color:#f0b450;color:#f0b450' : 'border-color:var(--accent);color:var(--accent)'}">${s.light_status==='found' ? '🌅 Light found' : '🔍 Searching'}</span>` : '<span class="chip">🌑 Darkness only</span>'}
+        ${tagChips}
+      </div>
+    </div>`;
+}
+
+function addTrigger() {
+  const input = document.getElementById('triggerInput');
+  const val = input?.value.trim().toLowerCase();
+  if (!val || triggers.includes(val)) { if(input) input.value=''; return; }
+  triggers.push(val);
+  localStorage.setItem('sl_triggers', JSON.stringify(triggers));
+  if(input) input.value = '';
+  renderBrowse();
+}
+
+function removeTrigger(i) {
+  triggers.splice(i, 1);
+  localStorage.setItem('sl_triggers', JSON.stringify(triggers));
+  renderBrowse();
+}
+
+// ── Reader ────────────────────────────────────────────────
+async function openStory(id) {
+  readerId = id;
+  await renderReader(id);
+}
+
+async function renderReader(id) {
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="reader-back"><button class="btn btn-ghost" onclick="readerId=null;renderBrowse()">← Back to stories</button></div><div id="readerShell"><div class="empty"><div class="icon">⏳</div><div>Loading…</div></div></div>`;
+
+  try {
+    const [s, comments] = await Promise.all([
+      api(`/api/stories/${id}`),
+      api(`/api/stories/${id}/comments`)
+    ]);
+
+    const votedClass = s.user_voted ? 'voted' : '';
+    const tagChips = s.tags?.length ? s.tags.map(t => `<span class="chip">${esc(t)}</span>`).join('') : '';
+
+    const commentsHtml = comments.length
+      ? comments.map(c => `
+          <div class="comment" id="comment-${c.id}">
+            <div class="comment-header">
+              <span class="comment-author">${esc(c.username)}</span>
+              <span style="display:flex;align-items:center;gap:.5rem">
+                <span class="comment-date">${fmtDate(c.created_at)}</span>
+                ${(user && (user.id === c.user_id || user.is_admin)) ? `<button class="btn btn-danger btn-sm" onclick="deleteComment('${c.id}','${s.id}')">Delete</button>` : ''}
+              </span>
+            </div>
+            <div class="comment-body">${esc(c.body)}</div>
+          </div>`).join('')
+      : '<div style="color:var(--muted);font-size:.85rem">No comments yet.</div>';
+
+    const commentForm = user
+      ? `<div class="comment-form">
+           <textarea id="commentInput" placeholder="Write a comment…"></textarea>
+           <button class="btn btn-primary" onclick="postComment('${s.id}')">Post Comment</button>
+         </div>`
+      : `<div style="color:var(--muted);font-size:.85rem;margin-top:.8rem">
+           <a href="#" onclick="openModal();return false" style="color:var(--accent)">Log in</a> to leave a comment.
+         </div>`;
+
+    document.getElementById('readerShell').innerHTML = `
+      <div class="card">
+        <div class="reader-header">
+          <h1>${esc(s.title)}</h1>
+          <div class="meta">by ${esc(s.author_name)} · ${s.genre || 'Uncategorised'} · ${fmtDate(s.created_at)} · ${readingTime(s.body)}</div>
+          ${tagChips ? `<div class="chips" style="margin-top:.6rem">${tagChips}</div>` : ''}
+        </div>
+
+        <div class="reader-actions">
+          <button class="btn-icon ${votedClass}" id="voteBtn" onclick="toggleVote('${s.id}')">
+            ▲ <span id="voteCount">${s.votes}</span> upvote${s.votes===1?'':'s'}
+          </button>
+          <button class="btn-icon" onclick="exportTxt('${s.id}')">⬇ Save as TXT</button>
+          <button class="btn-icon" onclick="window.print()">🖨 Save as PDF</button>
+        </div>
+
+        <div class="story-section darkness-section">
+          <div class="section-label">🌑 The Darkness</div>
+          <div class="reader-body">${esc(s.darkness || s.body)}</div>
+        </div>
+        ${s.light ? `
+        <div class="story-section ${s.light_status === 'found' ? 'light-section' : 'searching-section'}">
+          <div class="section-label">${s.light_status === 'found' ? '🌅 The Light' : '🔍 Still Searching'}</div>
+          <div class="reader-body">${esc(s.light)}</div>
+        </div>` : ''}
+
+        <div class="comments-section">
+          <h3>Comments (${comments.length})</h3>
+          <div id="commentsList">${commentsHtml}</div>
+          ${commentForm}
+        </div>
+      </div>`;
+
+    // Store story data for export
+    window._readerStory = s;
+  } catch(e) {
+    document.getElementById('readerShell').innerHTML = `<div class="empty"><div class="icon">⚠️</div><div>${esc(e.message)}</div></div>`;
+  }
+}
+
+async function toggleVote(storyId) {
+  if (!user) { openModal(); return; }
+  try {
+    const { voted } = await api(`/api/stories/${storyId}/vote`, 'POST');
+    const btn   = document.getElementById('voteBtn');
+    const count = document.getElementById('voteCount');
+    const cur   = parseInt(count.textContent);
+    count.textContent = voted ? cur + 1 : cur - 1;
+    btn.classList.toggle('voted', voted);
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function postComment(storyId) {
+  const input = document.getElementById('commentInput');
+  const body  = input.value.trim();
+  if (!body) return;
+  try {
+    const c = await api(`/api/stories/${storyId}/comments`, 'POST', { body });
+    const list = document.getElementById('commentsList');
+    const noMsg = list.querySelector('div');
+    if (noMsg && noMsg.style.color) noMsg.remove();
+    list.insertAdjacentHTML('beforeend', `
+      <div class="comment" id="comment-${c.id}">
+        <div class="comment-header">
+          <span class="comment-author">${esc(c.username)}</span>
+          <span style="display:flex;align-items:center;gap:.5rem">
+            <span class="comment-date">Just now</span>
+            <button class="btn btn-danger btn-sm" onclick="deleteComment('${c.id}','${storyId}')">Delete</button>
+          </span>
+        </div>
+        <div class="comment-body">${esc(c.body)}</div>
+      </div>`);
+    input.value = '';
+    toast('Comment posted!');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function deleteComment(commentId, storyId) {
+  if (!confirm('Delete this comment?')) return;
+  try {
+    await api(`/api/comments/${commentId}`, 'DELETE');
+    document.getElementById(`comment-${commentId}`)?.remove();
+    toast('Comment deleted.');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+function exportTxt(id) {
+  const s = window._readerStory;
+  if (!s) return;
+  const content = `${s.title}\nby ${s.author_name} · ${fmtDate(s.created_at)}\n${'─'.repeat(40)}\n\n${s.body}`;
+  const blob = new Blob([content], { type: 'text/plain' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${s.title.replace(/[^a-z0-9]/gi,'_')}.txt` });
+  a.click();
+}
+
+// ── Submit (multi-step) ───────────────────────────────────
+function renderSubmit() {
+  if (!user) {
+    document.getElementById('app').innerHTML = `
+      <div class="empty"><div class="icon">🔒</div>
+        <div>You need to be logged in to share a story.</div>
+        <br><button class="btn btn-primary" onclick="openModal()">Login / Register</button>
+      </div>`;
+    return;
+  }
+  renderSubmitStep();
+}
+
+function renderSubmitStep() {
+  const s    = submitDraft;
+  const STEPS = ['Your Story', 'The Darkness', 'The Light', 'Review'];
+
+  const progress = `
+    <div class="step-progress">
+      ${STEPS.map((label, i) => {
+        const n = i + 1;
+        const cls = n < s.step ? 'done' : n === s.step ? 'active' : '';
+        return `<div class="step-item ${cls}">
+          <div class="step-dot">${n < s.step ? '✓' : n}</div>
+          <div class="step-label">${label}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  let body = '';
+
+  if (s.step === 1) {
+    body = `
+      <div class="step-heading">Your Story</div>
+      <div class="step-desc">Give your story a title and tell us a little about what it covers.</div>
+      <div class="field"><label>Title *</label>
+        <input type="text" id="subTitle" placeholder="What would you like to call your story?" value="${esc(s.title)}">
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <select id="subGenre">
+          <option value="">— Select a category —</option>
+          ${['Trauma','Addiction','Depression','Relationship','Family','Friendship','Other'].map(g=>`<option ${s.genre===g?'selected':''}>${g}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Tags <span style="font-weight:400;text-transform:none">(comma-separated, optional)</span></label>
+        <input type="text" id="subTags" placeholder="e.g. grief, recovery, hope" value="${esc(s.tags)}">
+      </div>`;
+
+  } else if (s.step === 2) {
+    body = `
+      <div class="step-heading" style="color:#e96479">The Darkness</div>
+      <div class="step-desc">
+        This is a safe space. Share what you've been through — the pain, the struggle, the moments that felt impossible.
+        There's no right or wrong way to tell your truth. Write as much or as little as feels right.
+      </div>
+      <div class="field">
+        <textarea id="subDarkness" placeholder="Share your story here…" style="min-height:280px">${esc(s.darkness)}</textarea>
+      </div>`;
+
+  } else if (s.step === 3) {
+    const found = s.light_status === 'found';
+    body = `
+      <div class="step-heading" style="color:#f0b450">The Light</div>
+      <div class="step-desc">
+        Have you found a path forward? It's okay if you haven't — your story is complete and valid either way.
+        Sharing where you are right now can be just as powerful as sharing where you ended up.
+      </div>
+      <div class="light-toggle">
+        <button class="toggle-opt ${found ? 'sel-found' : ''}" onclick="setLightStatus('found')">🌅 I've found my light</button>
+        <button class="toggle-opt ${!found ? 'sel-searching' : ''}" onclick="setLightStatus('searching')">🔍 I'm still searching</button>
+      </div>
+      <div class="field">
+        <label>${found ? 'Share your path to hope' : 'Share where you are right now'}</label>
+        <textarea id="subLight" style="min-height:240px"
+          placeholder="${found
+            ? 'What helped you find hope? What changed? What would you tell someone still in the dark?'
+            : 'Even in the darkness, what are you holding on to? What do you hope for? You don\'t have to have answers.'
+          }">${esc(s.light)}</textarea>
+      </div>`;
+
+  } else if (s.step === 4) {
+    const lightClass = s.light_status === 'found' ? 'light-section' : 'searching-section';
+    const lightLabel = s.light_status === 'found' ? '🌅 The Light' : '🔍 Still Searching';
+    body = `
+      <div class="step-heading">Review Your Story</div>
+      <div class="step-desc">Read through your story before sharing it with others.</div>
+      <div class="card" style="background:var(--surface2);margin-bottom:1rem">
+        <h3 style="margin-bottom:.25rem">${esc(s.title)}</h3>
+        <div style="font-size:.76rem;color:var(--muted);margin-bottom:1.2rem">${s.genre || 'No category'}</div>
+        <div class="story-section darkness-section">
+          <div class="section-label">🌑 The Darkness</div>
+          <div style="font-size:.9rem;line-height:1.75;white-space:pre-wrap;color:#d0d0e0">${esc(s.darkness)}</div>
+        </div>
+        ${s.light ? `
+        <div class="story-section ${lightClass}">
+          <div class="section-label">${lightLabel}</div>
+          <div style="font-size:.9rem;line-height:1.75;white-space:pre-wrap;color:#d0d0e0">${esc(s.light)}</div>
+        </div>` : `
+        <div style="font-size:.82rem;color:var(--muted);padding:.5rem 0">No light section added.</div>`}
+      </div>
+      <div id="subError" class="error-msg" style="margin-bottom:.5rem"></div>`;
+  }
+
+  const isFirst = s.step === 1;
+  const isLast  = s.step === 4;
+
+  document.getElementById('app').innerHTML = `
+    <div class="card">
+      ${progress}
+      ${body}
+      <div class="step-nav">
+        ${!isFirst ? `<button class="btn btn-ghost" onclick="submitBack()">← Back</button>` : '<div></div>'}
+        ${isLast
+          ? `<button class="btn btn-primary" onclick="submitStory()">Publish Story</button>`
+          : `<button class="btn btn-primary" onclick="submitNext()">Continue →</button>`}
+      </div>
+    </div>`;
+}
+
+function setLightStatus(status) {
+  const el = document.getElementById('subLight');
+  if (el) submitDraft.light = el.value;
+  submitDraft.light_status = status;
+  renderSubmitStep();
+}
+
+function submitNext() {
+  const s = submitDraft;
+  if (s.step === 1) {
+    const title = document.getElementById('subTitle').value.trim();
+    if (!title) { toast('Please give your story a title.', 'err'); return; }
+    s.title = title;
+    s.genre = document.getElementById('subGenre').value;
+    s.tags  = document.getElementById('subTags').value;
+  } else if (s.step === 2) {
+    const darkness = document.getElementById('subDarkness').value.trim();
+    if (!darkness) { toast('Please share your story in The Darkness section.', 'err'); return; }
+    s.darkness = darkness;
+  } else if (s.step === 3) {
+    s.light = document.getElementById('subLight').value.trim();
+  }
+  s.step++;
+  renderSubmitStep();
+  window.scrollTo(0, 0);
+}
+
+function submitBack() {
+  const s = submitDraft;
+  if (s.step === 2) s.darkness = document.getElementById('subDarkness')?.value ?? s.darkness;
+  if (s.step === 3) s.light    = document.getElementById('subLight')?.value    ?? s.light;
+  s.step--;
+  renderSubmitStep();
+  window.scrollTo(0, 0);
+}
+
+async function submitStory() {
+  const s    = submitDraft;
+  const tags = s.tags.split(',').map(t => t.trim()).filter(Boolean);
+  const err  = document.getElementById('subError');
+  try {
+    await api('/api/stories', 'POST', {
+      title: s.title, genre: s.genre, tags,
+      darkness: s.darkness, light: s.light, light_status: s.light_status,
+    });
+    submitDraft = { step: 1, title: '', genre: '', tags: '', darkness: '', light: '', light_status: 'found' };
+    toast('Your story has been shared.');
+    go('browse');
+  } catch(e) { if (err) err.textContent = e.message; }
+}
+
+// ── My Stories ────────────────────────────────────────────
+async function renderMine() {
+  if (!user) {
+    document.getElementById('app').innerHTML = `
+      <div class="empty"><div class="icon">🔒</div>
+        <div>Log in to see your stories.</div><br>
+        <button class="btn btn-primary" onclick="openModal()">Login / Register</button>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('app').innerHTML = `<div id="mineShell"><div class="empty"><div class="icon">⏳</div><div>Loading…</div></div></div>`;
+
+  try {
+    const stories = await api('/api/my-stories');
+    if (!stories.length) {
+      document.getElementById('mineShell').innerHTML = `
+        <div class="empty"><div class="icon">📝</div><div>You haven't submitted any stories yet.</div><br>
+          <button class="btn btn-primary" onclick="go('submit')">Submit your first story</button></div>`;
+      return;
+    }
+
+    document.getElementById('mineShell').innerHTML = `
+      <div class="card"><h2>My Stories</h2>
+        ${stories.map(s => `
+          <div class="manage-row">
+            <div class="info">
+              <h4>${esc(s.title)}</h4>
+              <p>${s.genre || 'No genre'} · ${fmtDate(s.created_at)} · ▲ ${s.votes} · 💬 ${s.comment_count}</p>
+            </div>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm" onclick="openStory('${s.id}')">Read</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteStory('${s.id}')">Delete</button>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  } catch(e) {
+    document.getElementById('mineShell').innerHTML = `<div class="empty"><div class="icon">⚠️</div><div>${esc(e.message)}</div></div>`;
+  }
+}
+
+async function deleteStory(id) {
+  if (!confirm('Delete this story permanently? All votes and comments will be lost.')) return;
+  try {
+    await api(`/api/stories/${id}`, 'DELETE');
+    toast('Story deleted.');
+    renderMine();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+// ── Admin ─────────────────────────────────────────────────
+async function renderAdmin() {
+  document.getElementById('app').innerHTML = `
+    <div class="card">
+      <h2>Admin Panel</h2>
+      <div class="admin-tabs">
+        <button class="admin-tab ${adminTab==='users'?'active':''}"   onclick="adminTab='users';renderAdmin()">Users</button>
+        <button class="admin-tab ${adminTab==='stories'?'active':''}" onclick="adminTab='stories';renderAdmin()">All Stories</button>
+      </div>
+      <div id="adminContent"><div class="empty"><div class="icon">⏳</div><div>Loading…</div></div></div>
+    </div>`;
+
+  try {
+    if (adminTab === 'users') {
+      const users = await api('/api/admin/users');
+      document.getElementById('adminContent').innerHTML = users.map(u => `
+        <div class="manage-row">
+          <div class="info">
+            <h4>${esc(u.username)} ${u.is_admin ? '⚡ Admin' : ''}</h4>
+            <p>Joined ${fmtDate(u.joined)} · ID ${u.id}</p>
+          </div>
+          <div class="actions">
+            ${!u.is_admin ? `<button class="btn btn-ghost btn-sm" onclick="promoteUser('${u.id}')">Make Admin</button>` : ''}
+            ${u.id !== user.id ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Delete</button>` : '<span style="font-size:.75rem;color:var(--muted)">(you)</span>'}
+          </div>
+        </div>`).join('') || '<div class="empty"><div class="icon">👤</div><div>No users found.</div></div>';
+    } else {
+      const params = new URLSearchParams();
+      const stories = await api('/api/stories');
+      document.getElementById('adminContent').innerHTML = stories.map(s => `
+        <div class="manage-row">
+          <div class="info">
+            <h4>${esc(s.title)}</h4>
+            <p>by ${esc(s.author_name)} · ${s.genre||'—'} · ▲ ${s.votes} · 💬 ${s.comment_count} · ${fmtDate(s.created_at)}</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-ghost btn-sm" onclick="openStory('${s.id}')">Read</button>
+            <button class="btn btn-danger btn-sm" onclick="adminDeleteStory('${s.id}')">Delete</button>
+          </div>
+        </div>`).join('') || '<div class="empty"><div class="icon">📭</div><div>No stories.</div></div>';
+    }
+  } catch(e) {
+    document.getElementById('adminContent').innerHTML = `<div class="empty"><div class="icon">⚠️</div><div>${esc(e.message)}</div></div>`;
+  }
+}
+
+async function promoteUser(id) {
+  if (!confirm('Make this user an admin?')) return;
+  try { await api(`/api/admin/users/${id}/promote`, 'PATCH'); toast('User promoted to admin.'); renderAdmin(); }
+  catch(e) { toast(e.message, 'err'); }
+}
+
+async function deleteUser(id) {
+  if (!confirm('Delete this user and ALL their stories, votes and comments? This cannot be undone.')) return;
+  try { await api(`/api/admin/users/${id}`, 'DELETE'); toast('User deleted.'); renderAdmin(); }
+  catch(e) { toast(e.message, 'err'); }
+}
+
+async function adminDeleteStory(id) {
+  if (!confirm('Delete this story permanently?')) return;
+  try { await api(`/api/stories/${id}`, 'DELETE'); toast('Story deleted.'); renderAdmin(); }
+  catch(e) { toast(e.message, 'err'); }
+}
+
+// ── Auth modal ────────────────────────────────────────────
+function openModal() {
+  document.getElementById('modal').classList.remove('hidden');
+  switchAuthTab('login');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.add('hidden');
+}
+
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+function switchAuthTab(tab) {
+  authTab = tab;
+  document.querySelectorAll('.modal-tab').forEach((b,i) => b.classList.toggle('active', (i===0) === (tab==='login')));
+  const content = document.getElementById('modalContent');
+  if (tab === 'login') {
+    content.innerHTML = `
+      <p class="modal-title">Welcome back</p>
+      <div class="field"><label>Username</label><input type="text" id="authUser" placeholder="Your username"></div>
+      <div class="field"><label>Password</label><input type="password" id="authPass" placeholder="Your password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div id="authErr" class="error-msg" style="margin-bottom:.8rem"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Login</button>`;
+  } else {
+    content.innerHTML = `
+      <p class="modal-title">Create an account</p>
+      <div class="field"><label>Username</label><input type="text" id="authUser" placeholder="Choose a username (min 3 chars)"></div>
+      <div class="field"><label>Password</label><input type="password" id="authPass" placeholder="Choose a password (min 6 chars)" onkeydown="if(event.key==='Enter')doRegister()"></div>
+      <div id="authErr" class="error-msg" style="margin-bottom:.8rem"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="doRegister()">Create Account</button>
+      <p style="font-size:.75rem;color:var(--muted);margin-top:.75rem">The first account registered becomes admin.</p>`;
+  }
+  setTimeout(() => document.getElementById('authUser')?.focus(), 50);
+}
+
+async function doLogin() {
+  const username = document.getElementById('authUser').value.trim();
+  const password = document.getElementById('authPass').value;
+  const err = document.getElementById('authErr');
+  try {
+    const data = await api('/api/login', 'POST', { username, password });
+    saveAuth(data);
+    closeModal();
+    toast(`Welcome back, ${data.username}!`);
+    render();
+  } catch(e) { err.textContent = e.message; }
+}
+
+async function doRegister() {
+  const username = document.getElementById('authUser').value.trim();
+  const password = document.getElementById('authPass').value;
+  const err = document.getElementById('authErr');
+  try {
+    const data = await api('/api/register', 'POST', { username, password });
+    saveAuth(data);
+    closeModal();
+    toast(`Account created! Welcome, ${data.username}${data.is_admin ? ' (you\'re admin!)' : ''}!`);
+    render();
+  } catch(e) { err.textContent = e.message; }
+}
+
+function saveAuth(data) {
+  token = data.token;
+  user  = { id: data.id, username: data.username, is_admin: data.is_admin };
+  localStorage.setItem('sl_token', token);
+  localStorage.setItem('sl_user',  JSON.stringify(user));
+}
+
+function logout() {
+  token = null; user = null;
+  localStorage.removeItem('sl_token');
+  localStorage.removeItem('sl_user');
+  go('browse');
+  toast('Logged out.');
+}
+
+// ── Boot ──────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>

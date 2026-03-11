@@ -17,6 +17,7 @@ const db = {
   stories:  new Datastore({ filename: 'data/stories.db',  autoload: true }),
   votes:    new Datastore({ filename: 'data/votes.db',    autoload: true }),
   comments: new Datastore({ filename: 'data/comments.db', autoload: true }),
+  reports:  new Datastore({ filename: 'data/reports.db',  autoload: true }),
 };
 
 db.users.ensureIndex({ fieldName: 'username', unique: true });
@@ -207,12 +208,14 @@ app.get('/api/stories/:id/comments', async (req, res) => {
   res.json(list.map(c => ({ ...c, id: c._id })));
 });
 
-app.post('/api/stories/:id/comments', requireAuth, async (req, res) => {
-  const { body } = req.body || {};
+app.post('/api/stories/:id/comments', optAuth, async (req, res) => {
+  const { body, anon_name } = req.body || {};
   if (!body?.trim()) return res.status(400).json({ error: 'Comment cannot be empty' });
+  const username = req.user ? req.user.username : (anon_name?.trim().slice(0, 30) || 'Anonymous');
   const c = await db.comments.insertAsync({
-    story_id: req.params.id, user_id: req.user.id,
-    username: req.user.username, body: body.trim(),
+    story_id: req.params.id,
+    user_id: req.user?.id || null,
+    username, body: body.trim(),
     created_at: new Date().toISOString(),
   });
   res.json({ ...c, id: c._id });
@@ -224,6 +227,69 @@ app.delete('/api/comments/:id', requireAuth, async (req, res) => {
   if (c.user_id !== req.user.id && !req.user.is_admin)
     return res.status(403).json({ error: 'Forbidden' });
   await db.comments.removeAsync({ _id: req.params.id }, {});
+  res.json({ ok: true });
+});
+
+
+// ── Reports ───────────────────────────────────────────────
+app.post('/api/stories/:id/report', requireAuth, async (req, res) => {
+  const { reason } = req.body || {};
+  const story = await db.stories.findOneAsync({ _id: req.params.id });
+  if (!story) return res.status(404).json({ error: 'Not found' });
+  const existing = await db.reports.findOneAsync({ target_id: req.params.id, reporter_id: req.user.id });
+  if (existing) return res.status(409).json({ error: 'Already reported' });
+  await db.reports.insertAsync({
+    type: 'story', target_id: req.params.id,
+    target_title: story.title, target_author: story.author_name,
+    reporter_id: req.user.id, reporter_name: req.user.username,
+    reason: reason?.trim() || '',
+    created_at: new Date().toISOString(), resolved: false,
+  });
+  res.json({ ok: true });
+});
+
+app.post('/api/comments/:id/report', requireAuth, async (req, res) => {
+  const { reason } = req.body || {};
+  const comment = await db.comments.findOneAsync({ _id: req.params.id });
+  if (!comment) return res.status(404).json({ error: 'Not found' });
+  const existing = await db.reports.findOneAsync({ target_id: req.params.id, reporter_id: req.user.id });
+  if (existing) return res.status(409).json({ error: 'Already reported' });
+  await db.reports.insertAsync({
+    type: 'comment', target_id: req.params.id,
+    target_body: comment.body.slice(0, 100),
+    target_author: comment.username,
+    story_id: comment.story_id,
+    reporter_id: req.user.id, reporter_name: req.user.username,
+    reason: reason?.trim() || '',
+    created_at: new Date().toISOString(), resolved: false,
+  });
+  res.json({ ok: true });
+});
+
+app.get('/api/admin/reports', requireAuth, requireAdmin, async (req, res) => {
+  const list = await db.reports.findAsync({ resolved: false });
+  list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  res.json(list.map(r => ({ ...r, id: r._id })));
+});
+
+app.delete('/api/admin/reports/:id', requireAuth, requireAdmin, async (req, res) => {
+  await db.reports.updateAsync({ _id: req.params.id }, { $set: { resolved: true } }, {});
+  res.json({ ok: true });
+});
+
+app.delete('/api/admin/reports/:id/delete-content', requireAuth, requireAdmin, async (req, res) => {
+  const report = await db.reports.findOneAsync({ _id: req.params.id });
+  if (!report) return res.status(404).json({ error: 'Not found' });
+  if (report.type === 'story') {
+    await Promise.all([
+      db.votes.removeAsync(   { story_id: report.target_id }, { multi: true }),
+      db.comments.removeAsync({ story_id: report.target_id }, { multi: true }),
+      db.stories.removeAsync( { _id: report.target_id },      {}),
+    ]);
+  } else {
+    await db.comments.removeAsync({ _id: report.target_id }, {});
+  }
+  await db.reports.updateAsync({ target_id: report.target_id }, { $set: { resolved: true } }, { multi: true });
   res.json({ ok: true });
 });
 

@@ -4,174 +4,284 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StoryLab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,800;1,6..72,300;1,6..72,400&family=Bricolage+Grotesque:opsz,wght@12..96,200;12..96,400;12..96,700;12..96,800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #0f0f13;
-      --surface:  #1a1a24;
-      --surface2: #22222f;
-      --border:   #2e2e3e;
-      --accent:   #7c6af7;
-      --accent2:  #e96479;
-      --success:  #4caf87;
-      --warn:     #f0a050;
-      --text:     #e8e8f0;
-      --muted:    #888899;
-      --r:        10px;
+      --bg:         #080709;
+      --surface:    #111019;
+      --surface2:   #1b1924;
+      --border:     #2b2838;
+      --accent:     #c8823e;
+      --accent2:    #9b3a52;
+      --success:    #4a8a5b;
+      --warn:       #c8a030;
+      --text:       #ede5d8;
+      --muted:      #7a7285;
+      --r:          5px;
+      --font-ui:    'Bricolage Grotesque', sans-serif;
+      --font-story: 'Newsreader', Georgia, serif;
     }
 
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      background-image:
+        radial-gradient(ellipse 90% 55% at 15% 10%, #1c0f1a 0%, transparent 55%),
+        radial-gradient(ellipse 70% 50% at 85% 90%, #080e1c 0%, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text);
+      min-height: 100vh;
+    }
 
     /* ── Header ─────────────────────────────── */
     header {
-      background: var(--surface); border-bottom: 1px solid var(--border);
-      padding: 0 2rem; display: flex; align-items: center; justify-content: space-between;
-      height: 58px; position: sticky; top: 0; z-index: 200;
+      background: rgba(8,7,9,.88);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 62px; position: sticky; top: 0; z-index: 200;
     }
-    .logo { font-size: 1.35rem; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
-    .logo span { color: var(--accent2); }
-    nav { display: flex; gap: 3px; }
-    nav button { background: none; border: none; color: var(--muted); padding: .4rem .95rem; border-radius: 8px; font-size: .88rem; cursor: pointer; transition: .15s; }
+    .logo {
+      font-family: var(--font-story);
+      font-size: 1.65rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -.5px;
+    }
+    .logo em { font-style: italic; font-weight: 300; color: var(--accent); }
+    .logo span { color: var(--muted); font-size: 1.65rem; font-weight: 800; }
+    nav { display: flex; gap: 2px; }
+    nav button {
+      background: none; border: none; color: var(--muted);
+      padding: .38rem 1rem; border-radius: var(--r);
+      font-size: .72rem; font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
+      cursor: pointer; transition: color .2s, background .2s;
+      font-family: var(--font-ui);
+    }
     nav button:hover { background: var(--surface2); color: var(--text); }
     nav button.active { background: var(--accent); color: #fff; }
     .auth-area { display: flex; align-items: center; gap: .6rem; }
-    .username-chip { font-size: .82rem; color: var(--muted); background: var(--surface2); padding: .3rem .8rem; border-radius: 20px; border: 1px solid var(--border); }
+    .username-chip {
+      font-size: .72rem; font-weight: 700; letter-spacing: .3px;
+      color: var(--muted); background: var(--surface2);
+      padding: .3rem .9rem; border-radius: 99px; border: 1px solid var(--border);
+    }
 
     /* ── Layout ──────────────────────────────── */
-    main { max-width: 880px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+    main { max-width: 860px; margin: 0 auto; padding: 3rem 1.5rem; }
 
     /* ── Buttons ─────────────────────────────── */
-    .btn { display: inline-flex; align-items: center; gap: .35rem; padding: .55rem 1.25rem; border: none; border-radius: 8px; font-size: .88rem; font-weight: 600; cursor: pointer; transition: opacity .15s, transform .1s; }
-    .btn:hover { opacity: .85; transform: translateY(-1px); }
+    .btn {
+      display: inline-flex; align-items: center; gap: .35rem;
+      padding: .55rem 1.3rem; border: none; border-radius: var(--r);
+      font-size: .72rem; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+      cursor: pointer; transition: opacity .15s, transform .1s;
+      font-family: var(--font-ui);
+    }
+    .btn:hover { opacity: .82; transform: translateY(-1px); }
     .btn:active { transform: none; }
     .btn-primary { background: var(--accent);  color: #fff; }
     .btn-danger  { background: var(--accent2); color: #fff; }
     .btn-ghost   { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
-    .btn-sm      { padding: .3rem .8rem; font-size: .78rem; }
-    .btn-icon    { background: none; border: 1px solid var(--border); color: var(--muted); padding: .4rem .9rem; border-radius: 8px; font-size: .82rem; cursor: pointer; transition: .15s; display: inline-flex; align-items: center; gap: .3rem; }
+    .btn-sm      { padding: .28rem .75rem; font-size: .68rem; }
+    .btn-icon {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: .4rem 1rem; border-radius: var(--r);
+      font-size: .7rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+      cursor: pointer; transition: .15s; display: inline-flex; align-items: center; gap: .3rem;
+      font-family: var(--font-ui);
+    }
     .btn-icon:hover { background: var(--surface2); color: var(--text); }
-    .btn-icon.voted { border-color: var(--accent); color: var(--accent); background: rgba(124,106,247,.1); }
+    .btn-icon.voted { border-color: var(--accent); color: var(--accent); background: rgba(200,130,62,.1); }
 
     /* ── Cards / Forms ───────────────────────── */
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.8rem; margin-bottom: 1.4rem; }
-    h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1.4rem; }
-    .field { margin-bottom: 1.1rem; }
-    label { display: block; font-size: .78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: .4rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 2rem; margin-bottom: 1.4rem; }
+    h2 { font-family: var(--font-story); font-size: 1.7rem; font-weight: 800; margin-bottom: 1.4rem; letter-spacing: -.5px; }
+    .field { margin-bottom: 1.2rem; }
+    label { display: block; font-size: .68rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .9px; margin-bottom: .45rem; }
     input[type=text], input[type=password], textarea, select {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
-      color: var(--text); font-size: .93rem; padding: .6rem .9rem; outline: none; font-family: inherit; transition: border-color .15s;
+      width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r);
+      color: var(--text); font-size: .97rem; padding: .65rem 1rem; outline: none;
+      font-family: var(--font-story); transition: border-color .2s, box-shadow .2s;
     }
-    input:focus, textarea:focus { border-color: var(--accent); }
-    textarea { resize: vertical; min-height: 200px; line-height: 1.65; }
-    .hint { font-size: .75rem; color: var(--muted); margin-top: .3rem; }
-    .error-msg { color: var(--accent2); font-size: .83rem; margin-top: .5rem; }
+    input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200,130,62,.1); }
+    textarea { resize: vertical; min-height: 200px; line-height: 1.75; }
+    .hint { font-size: .71rem; color: var(--muted); margin-top: .35rem; }
+    .error-msg { color: var(--accent2); font-size: .8rem; margin-top: .5rem; }
 
     /* ── Story cards ─────────────────────────── */
-    .story-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem 1.4rem; margin-bottom: .85rem; cursor: pointer; transition: border-color .15s, transform .1s; }
-    .story-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .sc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: .4rem; }
-    .sc-header h3 { font-size: 1.05rem; font-weight: 600; }
-    .sc-meta { font-size: .76rem; color: var(--muted); margin-bottom: .5rem; }
-    .sc-excerpt { font-size: .86rem; color: var(--muted); line-height: 1.55; }
-    .sc-footer { display: flex; align-items: center; gap: .75rem; margin-top: .75rem; flex-wrap: wrap; }
-    .genre-badge { font-size: .7rem; font-weight: 700; padding: .18rem .55rem; border-radius: 20px; background: var(--surface2); color: var(--accent); border: 1px solid var(--accent); white-space: nowrap; flex-shrink: 0; }
-    .stat { font-size: .76rem; color: var(--muted); display: flex; align-items: center; gap: .2rem; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .story-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+      padding: 1.4rem 1.6rem; margin-bottom: .7rem; cursor: pointer;
+      transition: border-color .2s, box-shadow .2s;
+      animation: fadeUp .4s ease both;
+    }
+    .story-card:nth-child(1)  { animation-delay: .00s; }
+    .story-card:nth-child(2)  { animation-delay: .04s; }
+    .story-card:nth-child(3)  { animation-delay: .08s; }
+    .story-card:nth-child(4)  { animation-delay: .12s; }
+    .story-card:nth-child(5)  { animation-delay: .16s; }
+    .story-card:nth-child(6)  { animation-delay: .20s; }
+    .story-card:nth-child(7)  { animation-delay: .24s; }
+    .story-card:nth-child(8)  { animation-delay: .28s; }
+    .story-card:nth-child(9)  { animation-delay: .32s; }
+    .story-card:nth-child(10) { animation-delay: .36s; }
+    .story-card:hover { border-color: var(--accent); box-shadow: 0 4px 28px rgba(200,130,62,.09); }
+    .sc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: .45rem; }
+    .sc-header h3 { font-family: var(--font-story); font-size: 1.25rem; font-weight: 800; letter-spacing: -.2px; line-height: 1.25; }
+    .sc-meta { font-size: .71rem; color: var(--muted); margin-bottom: .55rem; letter-spacing: .2px; }
+    .sc-excerpt { font-family: var(--font-story); font-size: .97rem; color: var(--muted); line-height: 1.65; font-style: italic; }
+    .sc-footer { display: flex; align-items: center; gap: .75rem; margin-top: .85rem; flex-wrap: wrap; }
+    .genre-badge {
+      font-size: .63rem; font-weight: 700; letter-spacing: .9px; text-transform: uppercase;
+      padding: .18rem .62rem; border-radius: 99px; background: transparent;
+      color: var(--accent); border: 1px solid var(--accent); white-space: nowrap; flex-shrink: 0;
+    }
+    .stat { font-size: .72rem; color: var(--muted); display: flex; align-items: center; gap: .2rem; }
 
     /* ── Chips ───────────────────────────────── */
     .chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
-    .chip { display: inline-flex; align-items: center; gap: .25rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: .2rem .65rem; font-size: .75rem; }
+    .chip { display: inline-flex; align-items: center; gap: .25rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 99px; padding: .18rem .65rem; font-size: .69rem; letter-spacing: .2px; }
     .chip.trigger { border-color: var(--accent2); color: var(--accent2); }
     .chip button { background: none; border: none; cursor: pointer; color: inherit; font-size: .8rem; line-height: 1; opacity: .7; }
     .chip button:hover { opacity: 1; }
 
     /* ── Search bar ──────────────────────────── */
-    .search-row { display: flex; gap: .65rem; margin-bottom: .9rem; flex-wrap: wrap; }
+    .search-row { display: flex; gap: .6rem; margin-bottom: .9rem; flex-wrap: wrap; }
     .search-row input { flex: 1; min-width: 180px; }
-    .results-meta { font-size: .79rem; color: var(--muted); margin-bottom: .9rem; }
+    .results-meta { font-size: .72rem; color: var(--muted); margin-bottom: 1rem; letter-spacing: .2px; }
 
     /* ── Highlight ───────────────────────────── */
-    mark { background: rgba(124,106,247,.28); color: var(--accent); border-radius: 3px; padding: 0 2px; }
+    mark { background: rgba(200,130,62,.22); color: var(--accent); border-radius: 2px; padding: 0 2px; }
 
     /* ── Empty ───────────────────────────────── */
-    .empty { text-align: center; padding: 3.5rem 1rem; color: var(--muted); }
-    .empty .icon { font-size: 2.4rem; margin-bottom: .75rem; }
+    .empty { text-align: center; padding: 4.5rem 1rem; color: var(--muted); }
+    .empty .icon { font-size: 2.8rem; margin-bottom: .8rem; }
 
     /* ── Reader ──────────────────────────────── */
-    .reader-back { margin-bottom: 1.4rem; }
-    .reader-header { margin-bottom: 1.8rem; }
-    .reader-header h1 { font-size: 1.85rem; font-weight: 700; line-height: 1.3; margin-bottom: .5rem; }
-    .reader-header .meta { color: var(--muted); font-size: .84rem; }
-    .reader-actions { display: flex; gap: .6rem; align-items: center; margin-bottom: 1.6rem; flex-wrap: wrap; }
-    .reader-body { font-size: 1.05rem; line-height: 1.9; color: #d0d0e0; white-space: pre-wrap; word-break: break-word; }
+    .reader-back { margin-bottom: 1.5rem; }
+    .reader-header { margin-bottom: 2.2rem; }
+    .reader-header h1 {
+      font-family: var(--font-story);
+      font-size: 3rem; font-weight: 800; line-height: 1.15; margin-bottom: .6rem; letter-spacing: -.8px;
+    }
+    .reader-header .meta { color: var(--muted); font-size: .78rem; letter-spacing: .2px; }
+    .reader-actions { display: flex; gap: .6rem; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; }
+    .reader-body {
+      font-family: var(--font-story);
+      font-size: 1.18rem; line-height: 2.05; color: #d5ccbf; white-space: pre-wrap; word-break: break-word;
+    }
 
     /* ── Comments ────────────────────────────── */
-    .comments-section { margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 1.8rem; }
-    .comments-section h3 { font-size: 1rem; font-weight: 600; margin-bottom: 1.2rem; }
-    .comment { background: var(--surface2); border-radius: 10px; padding: .9rem 1.1rem; margin-bottom: .7rem; }
-    .comment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem; }
-    .comment-author { font-size: .8rem; font-weight: 700; color: var(--accent); }
-    .comment-date   { font-size: .72rem; color: var(--muted); }
-    .comment-body   { font-size: .88rem; line-height: 1.55; }
-    .comment-form { margin-top: 1.2rem; }
-    .comment-form textarea { min-height: 80px; margin-bottom: .6rem; }
+    .comments-section { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 2.2rem; }
+    .comments-section h3 { font-family: var(--font-story); font-size: 1.25rem; font-weight: 800; margin-bottom: 1.3rem; letter-spacing: -.3px; }
+    .comment { background: var(--surface2); border-radius: var(--r); padding: 1rem 1.2rem; margin-bottom: .7rem; border-left: 2px solid var(--border); }
+    .comment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .4rem; }
+    .comment-author { font-size: .72rem; font-weight: 700; color: var(--accent); letter-spacing: .3px; }
+    .comment-date   { font-size: .68rem; color: var(--muted); }
+    .comment-body   { font-family: var(--font-story); font-size: .97rem; line-height: 1.65; }
+    .comment-form { margin-top: 1.4rem; }
+    .comment-form textarea { min-height: 90px; margin-bottom: .6rem; }
 
     /* ── Manage table ────────────────────────── */
-    .manage-row { display: flex; justify-content: space-between; align-items: center; background: var(--surface2); border-radius: 10px; padding: .85rem 1.1rem; margin-bottom: .6rem; gap: 1rem; }
-    .manage-row .info h4 { font-size: .92rem; margin-bottom: .15rem; }
-    .manage-row .info p  { font-size: .74rem; color: var(--muted); }
+    .manage-row {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--surface2); border-radius: var(--r); padding: .9rem 1.2rem; margin-bottom: .5rem; gap: 1rem;
+      border-left: 2px solid var(--border); transition: border-color .2s;
+    }
+    .manage-row:hover { border-left-color: var(--accent); }
+    .manage-row .info h4 { font-family: var(--font-story); font-size: .95rem; font-weight: 600; margin-bottom: .18rem; }
+    .manage-row .info p  { font-size: .7rem; color: var(--muted); }
     .manage-row .actions { display: flex; gap: .5rem; flex-shrink: 0; }
 
     /* ── Admin ───────────────────────────────── */
-    .admin-tabs { display: flex; gap: 4px; margin-bottom: 1.4rem; }
-    .admin-tab { background: none; border: 1px solid var(--border); color: var(--muted); padding: .35rem 1rem; border-radius: 8px; font-size: .84rem; cursor: pointer; transition: .15s; }
+    .admin-tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; }
+    .admin-tab {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: .35rem 1rem; border-radius: var(--r);
+      font-size: .7rem; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+      cursor: pointer; transition: .15s; font-family: var(--font-ui);
+    }
     .admin-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
     /* ── Modal ───────────────────────────────── */
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 500; }
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.72);
+      backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center; z-index: 500;
+    }
     .modal-backdrop.hidden { display: none; }
-    .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; width: min(400px, 90vw); }
-    .modal-tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; }
-    .modal-tab { flex: 1; background: none; border: 1px solid var(--border); color: var(--muted); padding: .4rem; border-radius: 8px; font-size: .88rem; cursor: pointer; transition: .15s; }
+    .modal-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+      padding: 2.2rem; width: min(420px, 90vw);
+      box-shadow: 0 32px 80px rgba(0,0,0,.65);
+    }
+    .modal-tabs { display: flex; gap: 4px; margin-bottom: 1.6rem; }
+    .modal-tab {
+      flex: 1; background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: .4rem; border-radius: var(--r);
+      font-size: .7rem; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+      cursor: pointer; transition: .15s; font-family: var(--font-ui);
+    }
     .modal-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .modal-title { font-size: 1.15rem; font-weight: 600; margin-bottom: 1.3rem; }
+    .modal-title { font-family: var(--font-story); font-size: 1.5rem; font-weight: 800; margin-bottom: 1.4rem; letter-spacing: -.4px; }
 
     /* ── Toast ───────────────────────────────── */
-    #toast { position: fixed; bottom: 1.8rem; right: 1.8rem; padding: .7rem 1.3rem; border-radius: 10px; font-size: .88rem; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 999; }
-    #toast.show { opacity: 1; }
+    #toast {
+      position: fixed; bottom: 1.8rem; right: 1.8rem; padding: .65rem 1.3rem; border-radius: var(--r);
+      font-size: .7rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s, transform .25s; transform: translateY(8px); z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
     #toast.ok  { background: var(--success); color: #fff; }
     #toast.err { background: var(--accent2); color: #fff; }
 
     /* ── Multi-step submit ───────────────────── */
-    .step-progress { display: flex; align-items: flex-start; margin-bottom: 2rem; }
+    .step-progress { display: flex; align-items: flex-start; margin-bottom: 2.2rem; }
     .step-item { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
-    .step-item + .step-item::before { content: ''; position: absolute; top: 13px; right: 50%; left: -50%; height: 2px; background: var(--border); }
+    .step-item + .step-item::before { content: ''; position: absolute; top: 13px; right: 50%; left: -50%; height: 1px; background: var(--border); }
     .step-item.done + .step-item::before { background: var(--accent); }
-    .step-dot { width: 28px; height: 28px; border-radius: 50%; background: var(--surface2); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 700; position: relative; z-index: 1; margin-bottom: .35rem; }
-    .step-item.active .step-dot { border-color: var(--accent); color: var(--accent); }
+    .step-dot { width: 28px; height: 28px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; position: relative; z-index: 1; margin-bottom: .4rem; transition: .2s; }
+    .step-item.active .step-dot { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px rgba(200,130,62,.14); }
     .step-item.done .step-dot { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .step-label { font-size: .68rem; color: var(--muted); text-align: center; line-height: 1.3; }
+    .step-label { font-size: .62rem; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); text-align: center; line-height: 1.3; }
     .step-item.active .step-label { color: var(--text); }
-    .step-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 1.8rem; }
-    .step-heading { font-size: 1.3rem; font-weight: 700; margin-bottom: .5rem; }
-    .step-desc { color: var(--muted); font-size: .88rem; line-height: 1.65; margin-bottom: 1.5rem; }
+    .step-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; }
+    .step-heading { font-family: var(--font-story); font-size: 2rem; font-weight: 800; margin-bottom: .5rem; letter-spacing: -.6px; }
+    .step-desc { color: var(--muted); font-family: var(--font-story); font-size: 1.02rem; line-height: 1.7; margin-bottom: 1.6rem; font-style: italic; }
 
     /* ── Story sections ──────────────────────── */
-    .story-section { border-radius: 10px; padding: 1.3rem 1.4rem; margin-bottom: 1rem; }
-    .section-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .9px; margin-bottom: .8rem; display: flex; align-items: center; gap: .35rem; }
-    .darkness-section { background: rgba(233,100,121,.07); border: 1px solid rgba(233,100,121,.22); }
-    .darkness-section .section-label { color: #e96479; }
-    .light-section { background: rgba(240,180,80,.07); border: 1px solid rgba(240,180,80,.22); }
-    .light-section .section-label { color: #f0b450; }
-    .searching-section { background: rgba(124,106,247,.07); border: 1px solid rgba(124,106,247,.22); }
+    .story-section { border-radius: var(--r); padding: 1.5rem 1.6rem; margin-bottom: 1rem; }
+    .section-label { font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: .9rem; display: flex; align-items: center; gap: .4rem; }
+    .darkness-section { background: rgba(155,58,82,.08); border: 1px solid rgba(155,58,82,.22); }
+    .darkness-section .section-label { color: #c04a68; }
+    .light-section { background: rgba(200,160,48,.08); border: 1px solid rgba(200,160,48,.2); }
+    .light-section .section-label { color: #c8a030; }
+    .searching-section { background: rgba(200,130,62,.08); border: 1px solid rgba(200,130,62,.2); }
     .searching-section .section-label { color: var(--accent); }
 
     /* ── Light toggle ────────────────────────── */
-    .light-toggle { display: flex; gap: .5rem; margin-bottom: 1.3rem; }
-    .toggle-opt { flex: 1; padding: .75rem .5rem; border-radius: 10px; border: 2px solid var(--border); background: var(--surface2); color: var(--muted); font-size: .83rem; font-weight: 600; cursor: pointer; transition: .15s; text-align: center; }
+    .light-toggle { display: flex; gap: .5rem; margin-bottom: 1.4rem; }
+    .toggle-opt {
+      flex: 1; padding: .8rem .5rem; border-radius: var(--r);
+      border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
+      font-size: .7rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+      cursor: pointer; transition: .2s; text-align: center; font-family: var(--font-ui);
+    }
     .toggle-opt:hover { border-color: var(--accent); color: var(--text); }
-    .toggle-opt.sel-found { border-color: #f0b450; color: #f0b450; background: rgba(240,180,80,.09); }
-    .toggle-opt.sel-searching { border-color: var(--accent); color: var(--accent); background: rgba(124,106,247,.09); }
+    .toggle-opt.sel-found { border-color: #c8a030; color: #c8a030; background: rgba(200,160,48,.09); }
+    .toggle-opt.sel-searching { border-color: var(--accent); color: var(--accent); background: rgba(200,130,62,.09); }
 
     /* ── Print (PDF export) ──────────────────── */
     @media print {
@@ -186,14 +296,15 @@
 
     @media (max-width: 600px) {
       header { padding: 0 1rem; }
-      main { padding: 1.5rem 1rem; }
+      main { padding: 1.8rem 1rem; }
+      .reader-header h1 { font-size: 2.2rem; }
     }
   </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">Story<span>Lab</span></div>
+  <div class="logo"><em>Story</em><span>Lab</span></div>
   <nav id="nav">
     <button onclick="go('browse')" data-page="browse" class="active">Browse</button>
     <button onclick="go('submit')" data-page="submit">Submit</button>
@@ -482,6 +593,7 @@ async function renderReader(id) {
               <span class="comment-author">${esc(c.username)}</span>
               <span style="display:flex;align-items:center;gap:.5rem">
                 <span class="comment-date">${fmtDate(c.created_at)}</span>
+                ${user && user.id !== c.user_id ? `<button class="btn btn-ghost btn-sm" style="color:var(--accent2);border-color:var(--accent2)" onclick="reportComment('${c.id}')">⚑</button>` : ''}
                 ${(user && (user.id === c.user_id || user.is_admin)) ? `<button class="btn btn-danger btn-sm" onclick="deleteComment('${c.id}','${s.id}')">Delete</button>` : ''}
               </span>
             </div>
@@ -489,13 +601,10 @@ async function renderReader(id) {
           </div>`).join('')
       : '<div style="color:var(--muted);font-size:.85rem">No comments yet.</div>';
 
-    const commentForm = user
-      ? `<div class="comment-form">
+    const commentForm = `<div class="comment-form">
+           ${!user ? `<input type="text" id="anonName" placeholder="Your name (optional — leave blank to post as Anonymous)" style="margin-bottom:.6rem">` : ''}
            <textarea id="commentInput" placeholder="Write a comment…"></textarea>
            <button class="btn btn-primary" onclick="postComment('${s.id}')">Post Comment</button>
-         </div>`
-      : `<div style="color:var(--muted);font-size:.85rem;margin-top:.8rem">
-           <a href="#" onclick="openModal();return false" style="color:var(--accent)">Log in</a> to leave a comment.
          </div>`;
 
     document.getElementById('readerShell').innerHTML = `
@@ -512,6 +621,7 @@ async function renderReader(id) {
           </button>
           <button class="btn-icon" onclick="exportTxt('${s.id}')">⬇ Save as TXT</button>
           <button class="btn-icon" onclick="window.print()">🖨 Save as PDF</button>
+          ${user && user.id !== s.author_id ? `<button class="btn-icon" onclick="reportStory('${s.id}')" style="margin-left:auto;color:var(--accent2);border-color:var(--accent2)">⚑ Report</button>` : ''}
         </div>
 
         <div class="story-section darkness-section">
@@ -550,12 +660,33 @@ async function toggleVote(storyId) {
   } catch(e) { toast(e.message, 'err'); }
 }
 
+async function reportStory(storyId) {
+  if (!user) { openModal(); return; }
+  const reason = prompt('Why are you reporting this story? (optional)');
+  if (reason === null) return;
+  try {
+    await api(`/api/stories/${storyId}/report`, 'POST', { reason });
+    toast('Story reported. Thank you — an admin will review it.');
+  } catch(e) { toast(e.message === 'Already reported' ? 'You have already reported this story.' : e.message, 'err'); }
+}
+
+async function reportComment(commentId) {
+  if (!user) { openModal(); return; }
+  const reason = prompt('Why are you reporting this comment? (optional)');
+  if (reason === null) return;
+  try {
+    await api(`/api/comments/${commentId}/report`, 'POST', { reason });
+    toast('Comment reported. Thank you — an admin will review it.');
+  } catch(e) { toast(e.message === 'Already reported' ? 'You have already reported this comment.' : e.message, 'err'); }
+}
+
 async function postComment(storyId) {
   const input = document.getElementById('commentInput');
   const body  = input.value.trim();
   if (!body) return;
+  const anon_name = document.getElementById('anonName')?.value.trim() || '';
   try {
-    const c = await api(`/api/stories/${storyId}/comments`, 'POST', { body });
+    const c = await api(`/api/stories/${storyId}/comments`, 'POST', { body, anon_name });
     const list = document.getElementById('commentsList');
     const noMsg = list.querySelector('div');
     if (noMsg && noMsg.style.color) noMsg.remove();
@@ -823,9 +954,18 @@ async function renderAdmin() {
       <div class="admin-tabs">
         <button class="admin-tab ${adminTab==='users'?'active':''}"   onclick="adminTab='users';renderAdmin()">Users</button>
         <button class="admin-tab ${adminTab==='stories'?'active':''}" onclick="adminTab='stories';renderAdmin()">All Stories</button>
+        <button class="admin-tab ${adminTab==='reports'?'active':''}" onclick="adminTab='reports';renderAdmin()" id="adminReportsTab">Reports</button>
       </div>
       <div id="adminContent"><div class="empty"><div class="icon">⏳</div><div>Loading…</div></div></div>
     </div>`;
+
+  // Show report count badge on tab (async, non-blocking)
+  if (adminTab !== 'reports') {
+    api('/api/admin/reports').then(reports => {
+      const btn = document.getElementById('adminReportsTab');
+      if (btn && reports.length) btn.textContent = `Reports (${reports.length})`;
+    }).catch(() => {});
+  }
 
   try {
     if (adminTab === 'users') {
@@ -845,7 +985,7 @@ async function renderAdmin() {
             ${u.id !== user.id ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Delete</button>` : '<span style="font-size:.75rem;color:var(--muted)">(you)</span>'}
           </div>
         </div>`).join('') || '<div class="empty"><div class="icon">👤</div><div>No users found.</div></div>';
-    } else {
+    } else if (adminTab === 'stories') {
       const { stories } = await api('/api/stories?limit=1000');
       document.getElementById('adminContent').innerHTML = stories.map(s => `
         <div class="manage-row">
@@ -858,6 +998,27 @@ async function renderAdmin() {
             <button class="btn btn-danger btn-sm" onclick="adminDeleteStory('${s.id}')">Delete</button>
           </div>
         </div>`).join('') || '<div class="empty"><div class="icon">📭</div><div>No stories.</div></div>';
+    } else {
+      const reports = await api('/api/admin/reports');
+      // Update tab badge
+      const tabBtn = document.getElementById('adminReportsTab');
+      if (tabBtn && reports.length) tabBtn.textContent = `Reports (${reports.length})`;
+      document.getElementById('adminContent').innerHTML = reports.length ? reports.map(r => `
+        <div class="manage-row">
+          <div class="info">
+            <h4 style="display:flex;align-items:center;gap:.5rem">
+              <span style="font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:20px;background:${r.type==='story'?'rgba(124,106,247,.15)':'rgba(233,100,121,.15)'};color:${r.type==='story'?'var(--accent)':'var(--accent2)'}">${r.type.toUpperCase()}</span>
+              ${r.type === 'story' ? esc(r.target_title) : `"${esc(r.target_body)}…"`}
+            </h4>
+            <p>by ${esc(r.target_author)} · Reported by ${esc(r.reporter_name)} · ${fmtDate(r.created_at)}${r.reason ? ` · Reason: <em>${esc(r.reason)}</em>` : ''}</p>
+          </div>
+          <div class="actions">
+            ${r.type === 'story' ? `<button class="btn btn-ghost btn-sm" onclick="openStory('${r.target_id}')">View</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="adminDismissReport('${r.id}')">Dismiss</button>
+            <button class="btn btn-danger btn-sm" onclick="adminDeleteReportContent('${r.id}')">Delete Content</button>
+          </div>
+        </div>`).join('')
+        : '<div class="empty"><div class="icon">✅</div><div>No open reports.</div></div>';
     }
   } catch(e) {
     document.getElementById('adminContent').innerHTML = `<div class="empty"><div class="icon">⚠️</div><div>${esc(e.message)}</div></div>`;
@@ -879,6 +1040,17 @@ async function deleteUser(id) {
 async function adminDeleteStory(id) {
   if (!confirm('Delete this story permanently?')) return;
   try { await api(`/api/stories/${id}`, 'DELETE'); toast('Story deleted.'); renderAdmin(); }
+  catch(e) { toast(e.message, 'err'); }
+}
+
+async function adminDismissReport(id) {
+  try { await api(`/api/admin/reports/${id}`, 'DELETE'); toast('Report dismissed.'); renderAdmin(); }
+  catch(e) { toast(e.message, 'err'); }
+}
+
+async function adminDeleteReportContent(id) {
+  if (!confirm('Delete the reported content? This cannot be undone.')) return;
+  try { await api(`/api/admin/reports/${id}/delete-content`, 'DELETE'); toast('Content deleted.'); renderAdmin(); }
   catch(e) { toast(e.message, 'err'); }
 }
 

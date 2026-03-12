@@ -94,20 +94,21 @@ async function enrich(storyList, userId) {
     db.comments.findAsync({ story_id: { $in: ids } }),
   ]);
   return storyList.map(s => ({
-    id:            s._id,
-    title:         s.title,
-    body:          s.body,
-    darkness:      s.darkness || s.body || '',
-    light:         s.light    || '',
-    light_status:  s.light_status || 'searching',
-    genre:         s.genre || '',
-    tags:          s.tags  || [],
-    author_id:     s.author_id,
-    author_name:   s.author_name,
-    created_at:    s.created_at,
-    votes:         allVotes.filter(v => v.story_id === s._id).length,
-    comment_count: allComments.filter(c => c.story_id === s._id).length,
-    user_voted:    userId ? (allVotes.some(v => v.story_id === s._id && v.user_id === userId) ? 1 : 0) : 0,
+    id:                s._id,
+    title:             s.title,
+    body:              s.body,
+    darkness:          s.darkness || s.body || '',
+    light:             s.light    || '',
+    light_status:      s.light_status || 'searching',
+    genre:             s.genre || '',
+    tags:              s.tags  || [],
+    author_id:         s.author_id,
+    author_name:       s.author_name,
+    created_at:        s.created_at,
+    comments_disabled: s.comments_disabled || false,
+    votes:             allVotes.filter(v => v.story_id === s._id).length,
+    comment_count:     allComments.filter(c => c.story_id === s._id).length,
+    user_voted:        userId ? (allVotes.some(v => v.story_id === s._id && v.user_id === userId) ? 1 : 0) : 0,
   }));
 }
 
@@ -158,7 +159,7 @@ app.get('/api/my-stories', requireAuth, async (req, res) => {
 });
 
 app.post('/api/stories', requireAuth, async (req, res) => {
-  const { title, genre, tags, darkness, light, light_status } = req.body || {};
+  const { title, genre, tags, darkness, light, light_status, comments_disabled } = req.body || {};
   if (!title?.trim() || !darkness?.trim())
     return res.status(400).json({ error: 'Title and story are required' });
   // Combined body used for search and reading time
@@ -169,10 +170,21 @@ app.post('/api/stories', requireAuth, async (req, res) => {
     light: (light || '').trim(),
     light_status: light_status || 'searching',
     genre: genre || '', tags: tags || [],
+    comments_disabled: comments_disabled ? true : false,
     author_id: req.user.id, author_name: req.user.username,
     created_at: new Date().toISOString(),
   });
   res.json({ id: s._id });
+});
+
+app.patch('/api/stories/:id/toggle-comments', requireAuth, async (req, res) => {
+  const story = await db.stories.findOneAsync({ _id: req.params.id });
+  if (!story) return res.status(404).json({ error: 'Not found' });
+  if (story.author_id !== req.user.id && !req.user.is_admin)
+    return res.status(403).json({ error: 'Forbidden' });
+  const newVal = !story.comments_disabled;
+  await db.stories.updateAsync({ _id: req.params.id }, { $set: { comments_disabled: newVal } }, {});
+  res.json({ comments_disabled: newVal });
 });
 
 app.delete('/api/stories/:id', requireAuth, async (req, res) => {
@@ -211,6 +223,9 @@ app.get('/api/stories/:id/comments', async (req, res) => {
 app.post('/api/stories/:id/comments', optAuth, async (req, res) => {
   const { body, anon_name } = req.body || {};
   if (!body?.trim()) return res.status(400).json({ error: 'Comment cannot be empty' });
+  const story = await db.stories.findOneAsync({ _id: req.params.id });
+  if (!story) return res.status(404).json({ error: 'Not found' });
+  if (story.comments_disabled) return res.status(403).json({ error: 'Comments are disabled on this story' });
   const username = req.user ? req.user.username : (anon_name?.trim().slice(0, 30) || 'Anonymous');
   const c = await db.comments.insertAsync({
     story_id: req.params.id,

@@ -338,7 +338,7 @@ let searchQ  = '';
 let authTab   = 'login';
 let adminTab  = 'users';
 let browsePage = 1;
-let submitDraft = { step: 1, title: '', genre: '', tags: '', darkness: '', light: '', light_status: 'found' };
+let submitDraft = { step: 1, title: '', genre: '', tags: '', darkness: '', light: '', light_status: 'found', comments_disabled: false };
 
 // ── API client ────────────────────────────────────────────
 async function api(path, method = 'GET', body = null) {
@@ -601,7 +601,9 @@ async function renderReader(id) {
           </div>`).join('')
       : '<div style="color:var(--muted);font-size:.85rem">No comments yet.</div>';
 
-    const commentForm = `<div class="comment-form">
+    const commentForm = s.comments_disabled
+      ? `<div style="color:var(--muted);font-size:.85rem;padding:.75rem 0;border-top:1px solid var(--border)">Comments are disabled on this story.</div>`
+      : `<div class="comment-form">
            ${!user ? `<input type="text" id="anonName" placeholder="Your name (optional — leave blank to post as Anonymous)" style="margin-bottom:.6rem">` : ''}
            <textarea id="commentInput" placeholder="Write a comment…"></textarea>
            <button class="btn btn-primary" onclick="postComment('${s.id}')">Post Comment</button>
@@ -766,7 +768,7 @@ function renderSubmitStep() {
         <label>Category</label>
         <select id="subGenre">
           <option value="">— Select a category —</option>
-          ${['Trauma','Addiction','Depression','Relationship','Family','Friendship','Other'].map(g=>`<option ${s.genre===g?'selected':''}>${g}</option>`).join('')}
+          ${['Trauma','Addiction','Depression','Injury','Relationship','Family','Friendship','Other'].map(g=>`<option ${s.genre===g?'selected':''}>${g}</option>`).join('')}
         </select>
       </div>
       <div class="field">
@@ -826,6 +828,10 @@ function renderSubmitStep() {
         </div>` : `
         <div style="font-size:.82rem;color:var(--muted);padding:.5rem 0">No light section added.</div>`}
       </div>
+      <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;margin-bottom:1rem;font-size:.88rem;color:var(--muted)">
+        <input type="checkbox" id="subDisableComments" ${s.comments_disabled ? 'checked' : ''} style="width:1rem;height:1rem;accent-color:var(--accent)">
+        Disable comments on this story
+      </label>
       <div id="subError" class="error-msg" style="margin-bottom:.5rem"></div>`;
   }
 
@@ -885,12 +891,14 @@ async function submitStory() {
   const s    = submitDraft;
   const tags = s.tags.split(',').map(t => t.trim()).filter(Boolean);
   const err  = document.getElementById('subError');
+  const comments_disabled = document.getElementById('subDisableComments')?.checked || false;
   try {
     await api('/api/stories', 'POST', {
       title: s.title, genre: s.genre, tags,
       darkness: s.darkness, light: s.light, light_status: s.light_status,
+      comments_disabled,
     });
-    submitDraft = { step: 1, title: '', genre: '', tags: '', darkness: '', light: '', light_status: 'found' };
+    submitDraft = { step: 1, title: '', genre: '', tags: '', darkness: '', light: '', light_status: 'found', comments_disabled: false };
     toast('Your story has been shared.');
     go('browse');
   } catch(e) { if (err) err.textContent = e.message; }
@@ -928,6 +936,7 @@ async function renderMine() {
             </div>
             <div class="actions">
               <button class="btn btn-ghost btn-sm" onclick="openStory('${s.id}')">Read</button>
+              <button class="btn btn-ghost btn-sm" onclick="toggleComments('${s.id}', ${s.comments_disabled})" title="${s.comments_disabled ? 'Comments are disabled' : 'Comments are enabled'}">${s.comments_disabled ? '💬 Enable Comments' : '🔇 Disable Comments'}</button>
               <button class="btn btn-danger btn-sm" onclick="deleteStory('${s.id}')">Delete</button>
             </div>
           </div>`).join('')}
@@ -942,6 +951,14 @@ async function deleteStory(id) {
   try {
     await api(`/api/stories/${id}`, 'DELETE');
     toast('Story deleted.');
+    renderMine();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function toggleComments(id, currentlyDisabled) {
+  try {
+    const { comments_disabled } = await api(`/api/stories/${id}/toggle-comments`, 'PATCH');
+    toast(comments_disabled ? 'Comments disabled.' : 'Comments enabled.');
     renderMine();
   } catch(e) { toast(e.message, 'err'); }
 }

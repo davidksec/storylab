@@ -283,6 +283,39 @@
     .toggle-opt.sel-found { border-color: #c8a030; color: #c8a030; background: rgba(200,160,48,.09); }
     .toggle-opt.sel-searching { border-color: var(--accent); color: var(--accent); background: rgba(200,130,62,.09); }
 
+    /* ── Mode selection cards ────────────────── */
+    .mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.5rem 0; }
+    .mode-card {
+      background: var(--surface2); border: 2px solid var(--border); border-radius: var(--r);
+      padding: 2rem 1.5rem; cursor: pointer; transition: border-color .2s, box-shadow .2s; text-align: center;
+    }
+    .mode-card:hover { border-color: var(--accent); box-shadow: 0 4px 28px rgba(200,130,62,.1); }
+    .mode-card h3 { font-family: var(--font-story); font-size: 1.15rem; font-weight: 800; margin-bottom: .4rem; }
+    .mode-card p  { font-size: .8rem; color: var(--muted); line-height: 1.6; margin-bottom: 1rem; }
+    .mode-icon { font-size: 2rem; margin-bottom: .75rem; }
+    .mode-features { text-align: left; font-size: .76rem; color: var(--muted); line-height: 2; list-style: none; padding: 0; margin: 0 0 1.2rem; }
+    @media (max-width: 520px) { .mode-cards { grid-template-columns: 1fr; } }
+
+    /* ── Tag suggestions ─────────────────────── */
+    .tag-suggest { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .55rem; }
+    .tag-chip {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 99px;
+      padding: .2rem .65rem; font-size: .69rem; cursor: pointer; color: var(--muted);
+      transition: border-color .15s, color .15s; font-family: var(--font-ui);
+    }
+    .tag-chip:hover  { border-color: var(--accent); color: var(--text); }
+    .tag-chip.on { border-color: var(--accent); color: var(--accent); background: rgba(200,130,62,.1); }
+
+    /* ── Disclaimer / anonymous blocks ──────── */
+    .disclaimer-box {
+      background: rgba(200,130,62,.06); border: 1px solid rgba(200,130,62,.2);
+      border-radius: var(--r); padding: 1rem 1.2rem; margin-bottom: 1rem;
+      font-size: .8rem; color: var(--muted); line-height: 1.65;
+    }
+    .anon-block { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.2rem; margin-top: .6rem; }
+    .word-count-row { font-size: .7rem; color: var(--muted); text-align: right; margin-top: .3rem; }
+    .tip-box { background: rgba(200,130,62,.07); border: 1px solid rgba(200,130,62,.18); border-radius: var(--r); padding: .75rem 1rem; font-size: .8rem; color: var(--muted); margin-bottom: 1.4rem; line-height: 1.6; }
+
     /* ── Print (PDF export) ──────────────────── */
     @media print {
       header, .reader-back, .reader-actions, .comments-section, #toast, .modal-backdrop { display: none !important; }
@@ -338,8 +371,20 @@ let searchQ  = '';
 let authTab   = 'login';
 let adminTab  = 'users';
 let browsePage = 1;
-let submitDraft = { step: 1, title: '', genre: '', tags: '', darkness: '', light: '', light_status: 'found', comments_disabled: false };
+let submitMode  = null; // null | 'easy' | 'guided'
+let submitDraft = {
+  step: 1, title: '', genre: '', tags: '',
+  challenge: '', feeling: '', helped: '', advice: '',
+  light_status: 'searching',
+  story: '',
+  anon: false, anon_name: '', captcha_a: 0, captcha_b: 0,
+  comments_disabled: false,
+};
 let editingStoryId = null;
+
+const COMMON_TAGS = ['grief','healing','recovery','hope','loss','trauma','anxiety','depression','sobriety','family','abuse','childhood','relationships','divorce','loneliness','growth','faith','strength','resilience','addiction','self-worth','forgiveness'];
+const CATEGORIES  = ['Trauma','Addiction','Depression','Injury','Recovery','Relationship','Family','Friendship','Other'];
+const DISCLAIMER  = `By submitting your story, you confirm you are the author and grant StoryLab a non-exclusive licence to display and store your story on this platform. Your story may be read by visitors to this site. You can delete your story at any time from the My Stories page.`;
 
 // ── API client ────────────────────────────────────────────
 async function api(path, method = 'GET', body = null) {
@@ -356,7 +401,7 @@ async function api(path, method = 'GET', body = null) {
 function go(p) {
   page     = p;
   readerId = null;
-  if (p !== 'submit') { editingStoryId = null; }
+  if (p !== 'submit') { editingStoryId = null; submitMode = null; }
   render();
 }
 
@@ -730,22 +775,215 @@ function exportTxt(id) {
   a.click();
 }
 
-// ── Submit (multi-step) ───────────────────────────────────
+// ── Submit ────────────────────────────────────────────────
 function renderSubmit() {
-  if (!user) {
-    document.getElementById('app').innerHTML = `
-      <div class="empty"><div class="icon">🔒</div>
-        <div>You need to be logged in to share a story.</div>
-        <br><button class="btn btn-primary" onclick="openModal()">Login / Register</button>
-      </div>`;
+  if (editingStoryId) { submitMode = 'guided'; renderGuidedStep(); return; }
+  if (submitMode === 'easy')    { renderEasyForm(); return; }
+  if (submitMode === 'guided') {
+    if (!user) {
+      document.getElementById('app').innerHTML = `
+        <div class="empty"><div class="icon">🔒</div>
+          <div>Guided Mode requires an account so you can manage your story later.</div><br>
+          <button class="btn btn-primary" onclick="openModal()">Login / Register</button><br><br>
+          <button class="btn btn-ghost btn-sm" onclick="submitMode='easy';render()">Use Quick Share instead</button>&nbsp;
+          <button class="btn btn-ghost btn-sm" onclick="submitMode=null;render()">← Back</button>
+        </div>`;
+      return;
+    }
+    renderGuidedStep();
     return;
   }
-  renderSubmitStep();
+  renderModeSelect();
 }
 
-function renderSubmitStep() {
+function resetDraft() {
+  submitDraft = { step: 1, title: '', genre: '', tags: '', challenge: '', feeling: '', helped: '', advice: '', light_status: 'searching', story: '', anon: false, anon_name: '', captcha_a: 0, captcha_b: 0, comments_disabled: false };
+}
+
+// ── Mode selection ────────────────────────────────────────
+function renderModeSelect() {
+  document.getElementById('app').innerHTML = `
+    <div style="max-width:680px;margin:0 auto">
+      <h2 style="text-align:center;margin-bottom:.4rem">Share Your Story</h2>
+      <p style="text-align:center;color:var(--muted);font-family:var(--font-story);font-style:italic;font-size:1rem;margin-bottom:0">Choose how you'd like to share</p>
+      <div class="mode-cards">
+        <div class="mode-card" onclick="submitMode='easy';resetDraft();submitDraft.captcha_a=0;render()">
+          <div class="mode-icon">⚡</div>
+          <h3>Quick Share</h3>
+          <p>Share your story in under 2 minutes. No account needed.</p>
+          <ul class="mode-features">
+            <li>✓ Single simple form</li>
+            <li>✓ Post anonymously</li>
+            <li>✓ Tag suggestions</li>
+            <li>✓ No login required</li>
+          </ul>
+          <button class="btn btn-primary" style="width:100%">Quick Share →</button>
+        </div>
+        <div class="mode-card" onclick="submitMode='guided';resetDraft();render()" style="--hover-border:var(--accent2)">
+          <div class="mode-icon">📖</div>
+          <h3>Guided Story</h3>
+          <p>Step-by-step prompts help you craft a detailed, meaningful story.</p>
+          <ul class="mode-features">
+            <li>✓ Thoughtful guided prompts</li>
+            <li>✓ Tips at each step</li>
+            <li>✓ Share your path to healing</li>
+            <li>✓ Requires account</li>
+          </ul>
+          <button class="btn btn-primary" style="width:100%;background:var(--accent2)">Guided Mode →</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Easy Mode ─────────────────────────────────────────────
+function renderEasyForm() {
+  const s = submitDraft;
+  if (!s.captcha_a) { s.captcha_a = Math.floor(Math.random()*12)+1; s.captcha_b = Math.floor(Math.random()*12)+1; }
+  const catOpts = CATEGORIES.map(g => `<option ${s.genre===g?'selected':''}>${g}</option>`).join('');
+  const tagChips = COMMON_TAGS.map(t => {
+    const on = s.tags.split(',').map(x=>x.trim()).includes(t);
+    return `<button type="button" class="tag-chip ${on?'on':''}" onclick="toggleTag('${t}','easy')">${t}</button>`;
+  }).join('');
+
+  document.getElementById('app').innerHTML = `
+    <div class="card" style="max-width:660px;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.5rem">
+        <button class="btn btn-ghost btn-sm" onclick="submitMode=null;render()">← Back</button>
+        <h2 style="margin:0;font-size:1.4rem">⚡ Quick Share</h2>
+      </div>
+
+      <div class="field"><label>Title *</label>
+        <input type="text" id="easyTitle" placeholder="What would you call your story?" value="${esc(s.title)}">
+      </div>
+      <div class="field"><label>Category</label>
+        <select id="easyGenre"><option value="">— Select a category —</option>${catOpts}</select>
+      </div>
+      <div class="field">
+        <label>Your Story *</label>
+        <textarea id="easyStory" placeholder="Share what you've been through… 100–200 words is a great length, but write as much or as little as you need." style="min-height:240px" oninput="easyWC()">${esc(s.story)}</textarea>
+        <div class="word-count-row" id="easyWCRow">0 words</div>
+        <div class="hint">Write freely — there is no minimum or maximum.</div>
+      </div>
+
+      <div class="field">
+        <label>Tags <span style="font-weight:400;text-transform:none">(comma-separated)</span></label>
+        <input type="text" id="easyTags" placeholder="e.g. grief, recovery, hope" value="${esc(s.tags)}" oninput="refreshTagChips('easy')">
+        <div class="hint">Add tags to help others find your story.</div>
+        <div style="font-size:.63rem;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);margin:.7rem 0 .3rem">Click to add a suggestion</div>
+        <div class="tag-suggest" id="easyTagChips">${tagChips}</div>
+      </div>
+
+      ${!user ? `
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;font-size:.86rem;letter-spacing:0;font-weight:400">
+          <input type="checkbox" id="easyAnon" ${s.anon?'checked':''} onchange="toggleAnonBlock(this.checked)" style="width:1rem;height:1rem;accent-color:var(--accent)">
+          Post anonymously
+        </label>
+        <div class="anon-block" id="anonBlock" style="${s.anon?'':'display:none'}">
+          <div class="field" style="margin-bottom:.9rem"><label>Your name <span style="font-weight:400;text-transform:none">(optional)</span></label>
+            <input type="text" id="easyAnonName" placeholder="Leave blank to appear as Anonymous" value="${esc(s.anon_name)}" maxlength="30">
+          </div>
+          <div class="field" style="margin-bottom:0"><label>Spam check: what is <strong style="color:var(--text)">${s.captcha_a} + ${s.captcha_b}</strong>?</label>
+            <input type="text" id="easyCaptcha" placeholder="Type the answer" style="max-width:100px">
+          </div>
+        </div>
+      </div>` : `
+      <div class="field">
+        <div style="font-size:.82rem;color:var(--muted)">Posting as <strong style="color:var(--text)">${esc(user.username)}</strong></div>
+      </div>`}
+
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;font-size:.86rem;letter-spacing:0;font-weight:400;color:var(--muted)">
+          <input type="checkbox" id="easyNoComments" ${s.comments_disabled?'checked':''} style="width:1rem;height:1rem;accent-color:var(--accent)">
+          Disable comments on this story
+        </label>
+      </div>
+
+      <div class="disclaimer-box"><strong style="color:var(--text)">Before you submit:</strong> ${DISCLAIMER}</div>
+      <label style="display:flex;align-items:flex-start;gap:.6rem;cursor:pointer;margin-bottom:1.2rem;font-size:.82rem;color:var(--muted)">
+        <input type="checkbox" id="easyDisclaimer" style="width:1rem;height:1rem;margin-top:.15rem;accent-color:var(--accent);flex-shrink:0">
+        I understand and agree to the above
+      </label>
+
+      <div id="easyError" class="error-msg" style="margin-bottom:.6rem"></div>
+      <button class="btn btn-primary" style="width:100%;padding:.8rem" onclick="submitEasyStory()">Share My Story</button>
+    </div>`;
+  easyWC();
+}
+
+function easyWC() {
+  const el = document.getElementById('easyStory');
+  const row = document.getElementById('easyWCRow');
+  if (!el || !row) return;
+  const wc = el.value.trim() ? el.value.trim().split(/\s+/).length : 0;
+  const col = wc < 50 ? 'var(--muted)' : wc <= 300 ? 'var(--success)' : 'var(--warn)';
+  row.innerHTML = `<span style="color:${col}">${wc} word${wc===1?'':'s'}</span>`;
+}
+
+function toggleAnonBlock(on) {
+  const el = document.getElementById('anonBlock');
+  if (el) el.style.display = on ? '' : 'none';
+}
+
+function toggleTag(tag, mode) {
+  const inputId = mode === 'easy' ? 'easyTags' : 'subTags';
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  let parts = input.value.split(',').map(t=>t.trim()).filter(Boolean);
+  const idx = parts.indexOf(tag);
+  if (idx >= 0) parts.splice(idx, 1); else parts.push(tag);
+  input.value = parts.join(', ');
+  refreshTagChips(mode);
+}
+
+function refreshTagChips(mode) {
+  const inputId  = mode === 'easy' ? 'easyTags'     : 'subTags';
+  const chipsId  = mode === 'easy' ? 'easyTagChips' : 'subTagChips';
+  const input    = document.getElementById(inputId);
+  const chipsEl  = document.getElementById(chipsId);
+  if (!input || !chipsEl) return;
+  const selected = input.value.split(',').map(t=>t.trim()).filter(Boolean);
+  chipsEl.innerHTML = COMMON_TAGS.map(t => {
+    const on = selected.includes(t);
+    return `<button type="button" class="tag-chip ${on?'on':''}" onclick="toggleTag('${t}','${mode}')">${t}</button>`;
+  }).join('');
+}
+
+async function submitEasyStory() {
+  const title    = document.getElementById('easyTitle')?.value.trim();
+  const genre    = document.getElementById('easyGenre')?.value || '';
+  const story    = document.getElementById('easyStory')?.value.trim();
+  const tagsRaw  = document.getElementById('easyTags')?.value || '';
+  const isAnon   = !user && (document.getElementById('easyAnon')?.checked || false);
+  const anonName = document.getElementById('easyAnonName')?.value.trim() || '';
+  const captchaVal = document.getElementById('easyCaptcha')?.value.trim();
+  const noComments  = document.getElementById('easyNoComments')?.checked || false;
+  const disclaimer  = document.getElementById('easyDisclaimer')?.checked || false;
+  const err = document.getElementById('easyError');
+
+  if (!title)      { err.textContent = 'Please give your story a title.'; return; }
+  if (!story)      { err.textContent = 'Please share your story.'; return; }
+  if (!disclaimer) { err.textContent = 'Please accept the disclaimer to continue.'; return; }
+  if (isAnon && parseInt(captchaVal) !== submitDraft.captcha_a + submitDraft.captcha_b) {
+    err.textContent = `Incorrect answer — please solve the maths check.`; return;
+  }
+
+  const tags    = tagsRaw.split(',').map(t=>t.trim()).filter(Boolean);
+  const payload = { title, genre: genre || 'Other', tags, darkness: story, light: '', light_status: 'searching', comments_disabled: noComments };
+  if (isAnon) payload.anon_name = anonName;
+  err.textContent = '';
+  try {
+    await api('/api/stories', 'POST', payload);
+    submitMode = null; resetDraft();
+    toast('Your story has been shared. Thank you for your courage.');
+    go('browse');
+  } catch(e) { err.textContent = e.message; }
+}
+
+// ── Guided Mode ───────────────────────────────────────────
+function renderGuidedStep() {
   const s    = submitDraft;
-  const STEPS = ['Your Story', 'The Darkness', 'The Light', 'Review'];
+  const STEPS = ['Your Story', 'The Challenge', 'Finding Light', 'Review & Share'];
 
   const progress = `
     <div class="step-progress">
@@ -760,81 +998,97 @@ function renderSubmitStep() {
     </div>`;
 
   let body = '';
+  const catOpts = CATEGORIES.map(g => `<option ${s.genre===g?'selected':''}>${g}</option>`).join('');
+  const tip = t => `<div class="tip-box"><span style="color:var(--accent)">💡</span> ${t}</div>`;
 
   if (s.step === 1) {
     body = `
       <div class="step-heading">Your Story</div>
-      <div class="step-desc">Give your story a title and tell us a little about what it covers.</div>
+      <div class="step-desc">Let's start with the basics, then we'll walk through some gentle prompts to help you find the words.</div>
       <div class="field"><label>Title *</label>
-        <input type="text" id="subTitle" placeholder="What would you like to call your story?" value="${esc(s.title)}">
+        <input type="text" id="subTitle" placeholder="What would you call your story?" value="${esc(s.title)}">
+      </div>
+      <div class="field"><label>Category</label>
+        <select id="subGenre"><option value="">— Select a category —</option>${catOpts}</select>
       </div>
       <div class="field">
-        <label>Category</label>
-        <select id="subGenre">
-          <option value="">— Select a category —</option>
-          ${['Trauma','Addiction','Depression','Injury','Relationship','Family','Friendship','Other'].map(g=>`<option ${s.genre===g?'selected':''}>${g}</option>`).join('')}
-        </select>
+        <label>What challenge did you face? *</label>
+        <textarea id="subChallenge" placeholder="Describe what happened. Be as specific or general as you're comfortable with…" style="min-height:260px">${esc(s.challenge)}</textarea>
       </div>
-      <div class="field">
-        <label>Tags <span style="font-weight:400;text-transform:none">(comma-separated, optional)</span></label>
-        <input type="text" id="subTags" placeholder="e.g. grief, recovery, hope" value="${esc(s.tags)}">
-      </div>`;
+      ${tip('Write as much or as little as feels right. There are no wrong answers here.')}`;
 
   } else if (s.step === 2) {
+    const found = s.light_status === 'found';
     body = `
-      <div class="step-heading" style="color:#e96479">The Darkness</div>
-      <div class="step-desc">
-        This is a safe space. Share what you've been through — the pain, the struggle, the moments that felt impossible.
-        There's no right or wrong way to tell your truth. Write as much or as little as feels right.
-      </div>
+      <div class="step-heading" style="color:#e96479">The Experience</div>
+      <div class="step-desc">Let's go a little deeper into how this felt for you.</div>
       <div class="field">
-        <textarea id="subDarkness" placeholder="Share your story here…" style="min-height:280px">${esc(s.darkness)}</textarea>
+        <label>How did it feel at the time? <span style="font-weight:400;text-transform:none">(optional)</span></label>
+        <textarea id="subFeeling" placeholder="Describe the emotions — the weight of it, the moments that felt impossible…" style="min-height:200px">${esc(s.feeling)}</textarea>
+      </div>
+      ${tip('Sharing your feelings helps others feel less alone in theirs. This is completely optional.')}
+      <div>
+        <label style="margin-bottom:.8rem;display:block">Where are you in your journey?</label>
+        <div class="light-toggle">
+          <button class="toggle-opt ${found?'sel-found':''}" onclick="setLightStatus('found')">🌅 I've found my light</button>
+          <button class="toggle-opt ${!found?'sel-searching':''}" onclick="setLightStatus('searching')">🔍 I'm still searching</button>
+        </div>
       </div>`;
 
   } else if (s.step === 3) {
     const found = s.light_status === 'found';
     body = `
-      <div class="step-heading" style="color:#f0b450">The Light</div>
-      <div class="step-desc">
-        Have you found a path forward? It's okay if you haven't — your story is complete and valid either way.
-        Sharing where you are right now can be just as powerful as sharing where you ended up.
-      </div>
-      <div class="light-toggle">
-        <button class="toggle-opt ${found ? 'sel-found' : ''}" onclick="setLightStatus('found')">🌅 I've found my light</button>
-        <button class="toggle-opt ${!found ? 'sel-searching' : ''}" onclick="setLightStatus('searching')">🔍 I'm still searching</button>
+      <div class="step-heading" style="color:#f0b450">${found ? 'Finding Light' : 'Holding On'}</div>
+      <div class="step-desc">${found ? 'Share what helped you through it — your path forward.' : 'Even in the hardest times, there are things we hold on to.'}</div>
+      <div class="field">
+        <label>${found ? 'What helped you through it?' : 'What are you holding on to?'} <span style="font-weight:400;text-transform:none">(optional)</span></label>
+        <textarea id="subHelped" placeholder="${found ? 'What changed? What helped? What would you tell someone still in the dark?' : 'What keeps you going? What small things bring you comfort or hope?'}" style="min-height:180px">${esc(s.helped)}</textarea>
       </div>
       <div class="field">
-        <label>${found ? 'Share your path to hope' : 'Share where you are right now'}</label>
-        <textarea id="subLight" style="min-height:240px"
-          placeholder="${found
-            ? 'What helped you find hope? What changed? What would you tell someone still in the dark?'
-            : 'Even in the darkness, what are you holding on to? What do you hope for? You don\'t have to have answers.'
-          }">${esc(s.light)}</textarea>
-      </div>`;
+        <label>What would you tell someone going through this? <span style="font-weight:400;text-transform:none">(optional)</span></label>
+        <textarea id="subAdvice" placeholder="Any words of wisdom, comfort or solidarity for someone facing the same thing…" style="min-height:140px">${esc(s.advice)}</textarea>
+      </div>
+      ${tip('Even a single sentence can be life-changing for someone else. Both fields are optional.')}`;
 
   } else if (s.step === 4) {
+    const darkness_p = [s.challenge, s.feeling].filter(Boolean).join('\n\n');
+    const light_p    = [s.helped, s.advice].filter(Boolean).join('\n\n');
     const lightClass = s.light_status === 'found' ? 'light-section' : 'searching-section';
     const lightLabel = s.light_status === 'found' ? '🌅 The Light' : '🔍 Still Searching';
+    const tagChips   = COMMON_TAGS.map(t => {
+      const on = s.tags.split(',').map(x=>x.trim()).includes(t);
+      return `<button type="button" class="tag-chip ${on?'on':''}" onclick="toggleTag('${t}','guided')">${t}</button>`;
+    }).join('');
     body = `
-      <div class="step-heading">Review Your Story</div>
-      <div class="step-desc">Read through your story before sharing it with others.</div>
+      <div class="step-heading">Review & Share</div>
+      <div class="step-desc">Take a moment to read your story, add some tags, then share it when you're ready.</div>
+      <div class="field">
+        <label>Tags <span style="font-weight:400;text-transform:none">(comma-separated)</span></label>
+        <input type="text" id="subTags" placeholder="e.g. grief, recovery, hope" value="${esc(s.tags)}" oninput="refreshTagChips('guided')">
+        <div class="hint">Tags help others find your story — adding a few gives it better visibility.</div>
+        <div style="font-size:.63rem;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);margin:.7rem 0 .3rem">Click to add a suggestion</div>
+        <div class="tag-suggest" id="subTagChips">${tagChips}</div>
+      </div>
       <div class="card" style="background:var(--surface2);margin-bottom:1rem">
         <h3 style="margin-bottom:.25rem">${esc(s.title)}</h3>
         <div style="font-size:.76rem;color:var(--muted);margin-bottom:1.2rem">${s.genre || 'No category'}</div>
-        <div class="story-section darkness-section">
+        ${darkness_p ? `<div class="story-section darkness-section">
           <div class="section-label">🌑 The Darkness</div>
-          <div style="font-size:.9rem;line-height:1.75;white-space:pre-wrap;color:#d0d0e0">${esc(s.darkness)}</div>
-        </div>
-        ${s.light ? `
-        <div class="story-section ${lightClass}">
+          <div style="font-size:.9rem;line-height:1.75;white-space:pre-wrap;color:#d0d0e0">${esc(darkness_p)}</div>
+        </div>` : ''}
+        ${light_p ? `<div class="story-section ${lightClass}">
           <div class="section-label">${lightLabel}</div>
-          <div style="font-size:.9rem;line-height:1.75;white-space:pre-wrap;color:#d0d0e0">${esc(s.light)}</div>
-        </div>` : `
-        <div style="font-size:.82rem;color:var(--muted);padding:.5rem 0">No light section added.</div>`}
+          <div style="font-size:.9rem;line-height:1.75;white-space:pre-wrap;color:#d0d0e0">${esc(light_p)}</div>
+        </div>` : `<div style="font-size:.82rem;color:var(--muted);padding:.5rem 0">No light section added.</div>`}
       </div>
-      <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;margin-bottom:1rem;font-size:.88rem;color:var(--muted)">
-        <input type="checkbox" id="subDisableComments" ${s.comments_disabled ? 'checked' : ''} style="width:1rem;height:1rem;accent-color:var(--accent)">
+      <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;margin-bottom:1.2rem;font-size:.88rem;color:var(--muted)">
+        <input type="checkbox" id="subDisableComments" ${s.comments_disabled?'checked':''} style="width:1rem;height:1rem;accent-color:var(--accent)">
         Disable comments on this story
+      </label>
+      <div class="disclaimer-box"><strong style="color:var(--text)">Before you submit:</strong> ${DISCLAIMER}</div>
+      <label style="display:flex;align-items:flex-start;gap:.6rem;cursor:pointer;margin-bottom:1rem;font-size:.82rem;color:var(--muted)">
+        <input type="checkbox" id="subDisclaimer" style="width:1rem;height:1rem;margin-top:.15rem;accent-color:var(--accent);flex-shrink:0">
+        I understand and agree to the above
       </label>
       <div id="subError" class="error-msg" style="margin-bottom:.5rem"></div>`;
   }
@@ -844,50 +1098,54 @@ function renderSubmitStep() {
 
   document.getElementById('app').innerHTML = `
     <div class="card">
-      ${progress}
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.4rem">
+        ${isFirst && !editingStoryId ? `<button class="btn btn-ghost btn-sm" onclick="submitMode=null;render()">← Modes</button>` : ''}
+        <div style="flex:1">${progress}</div>
+      </div>
       ${body}
       <div class="step-nav">
-        ${!isFirst ? `<button class="btn btn-ghost" onclick="submitBack()">← Back</button>` : '<div></div>'}
+        ${!isFirst ? `<button class="btn btn-ghost" onclick="guidedBack()">← Back</button>` : '<div></div>'}
         ${isLast
-          ? `<button class="btn btn-primary" onclick="submitStory()">${editingStoryId ? 'Save Changes' : 'Publish Story'}</button>`
-          : `<button class="btn btn-primary" onclick="submitNext()">Continue →</button>`}
+          ? `<button class="btn btn-primary" onclick="submitGuidedStory()">${editingStoryId ? 'Save Changes' : 'Share My Story'}</button>`
+          : `<button class="btn btn-primary" onclick="guidedNext()">Continue →</button>`}
       </div>
     </div>`;
 }
 
 function setLightStatus(status) {
-  const el = document.getElementById('subLight');
-  if (el) submitDraft.light = el.value;
+  const el = document.getElementById('subFeeling');
+  if (el) submitDraft.feeling = el.value;
   submitDraft.light_status = status;
-  renderSubmitStep();
+  renderGuidedStep();
 }
 
-function submitNext() {
+function guidedNext() {
   const s = submitDraft;
   if (s.step === 1) {
-    const title = document.getElementById('subTitle').value.trim();
-    if (!title) { toast('Please give your story a title.', 'err'); return; }
-    s.title = title;
+    s.title     = document.getElementById('subTitle').value.trim();
+    s.challenge = document.getElementById('subChallenge').value.trim();
+    if (!s.title)     { toast('Please give your story a title.', 'err'); return; }
+    if (!s.challenge) { toast('Please describe the challenge you faced.', 'err'); return; }
     s.genre = document.getElementById('subGenre').value;
-    s.tags  = document.getElementById('subTags').value;
   } else if (s.step === 2) {
-    const darkness = document.getElementById('subDarkness').value.trim();
-    if (!darkness) { toast('Please share your story in The Darkness section.', 'err'); return; }
-    s.darkness = darkness;
+    s.feeling = document.getElementById('subFeeling')?.value.trim() || '';
   } else if (s.step === 3) {
-    s.light = document.getElementById('subLight').value.trim();
+    s.helped = document.getElementById('subHelped')?.value.trim() || '';
+    s.advice = document.getElementById('subAdvice')?.value.trim() || '';
   }
   s.step++;
-  renderSubmitStep();
+  renderGuidedStep();
   window.scrollTo(0, 0);
 }
 
-function submitBack() {
+function guidedBack() {
   const s = submitDraft;
-  if (s.step === 2) s.darkness = document.getElementById('subDarkness')?.value ?? s.darkness;
-  if (s.step === 3) s.light    = document.getElementById('subLight')?.value    ?? s.light;
+  if (s.step === 2) s.feeling = document.getElementById('subFeeling')?.value ?? s.feeling;
+  if (s.step === 3) { s.helped = document.getElementById('subHelped')?.value ?? s.helped; s.advice = document.getElementById('subAdvice')?.value ?? s.advice; }
+  if (s.step === 4) { s.tags = document.getElementById('subTags')?.value ?? s.tags; }
+  if (s.step === 1 && !editingStoryId) { submitMode = null; render(); return; }
   s.step--;
-  renderSubmitStep();
+  renderGuidedStep();
   window.scrollTo(0, 0);
 }
 
@@ -895,37 +1153,42 @@ async function editStory(id) {
   try {
     const s = await api(`/api/stories/${id}`);
     editingStoryId = id;
+    submitMode = 'guided';
     submitDraft = {
-      step: 1,
-      title: s.title,
-      genre: s.genre || '',
+      step: 1, title: s.title, genre: s.genre || '',
       tags: (s.tags || []).join(', '),
-      darkness: s.darkness || s.body || '',
-      light: s.light || '',
+      challenge: s.darkness || s.body || '', feeling: '',
+      helped: s.light || '', advice: '',
       light_status: s.light_status || 'searching',
+      story: '', anon: false, anon_name: '', captcha_a: 0, captcha_b: 0,
       comments_disabled: s.comments_disabled || false,
     };
     go('submit');
   } catch(e) { toast(e.message, 'err'); }
 }
 
-async function submitStory() {
-  const s    = submitDraft;
-  const tags = s.tags.split(',').map(t => t.trim()).filter(Boolean);
-  const err  = document.getElementById('subError');
-  const comments_disabled = document.getElementById('subDisableComments')?.checked || false;
-  const payload = { title: s.title, genre: s.genre, tags, darkness: s.darkness, light: s.light, light_status: s.light_status, comments_disabled };
+async function submitGuidedStory() {
+  const s = submitDraft;
+  s.tags             = document.getElementById('subTags')?.value || s.tags;
+  s.comments_disabled = document.getElementById('subDisableComments')?.checked || false;
+  const disclaimer   = document.getElementById('subDisclaimer')?.checked || false;
+  const err          = document.getElementById('subError');
+  if (!disclaimer) { err.textContent = 'Please accept the disclaimer to continue.'; return; }
+
+  const darkness = [s.challenge, s.feeling].filter(Boolean).join('\n\n');
+  const light    = [s.helped, s.advice].filter(Boolean).join('\n\n');
+  const tags     = s.tags.split(',').map(t=>t.trim()).filter(Boolean);
+  const payload  = { title: s.title, genre: s.genre || 'Other', tags, darkness, light, light_status: s.light_status, comments_disabled: s.comments_disabled };
   try {
     if (editingStoryId) {
       await api(`/api/stories/${editingStoryId}`, 'PATCH', payload);
-      editingStoryId = null;
-      submitDraft = { step: 1, title: '', genre: '', tags: '', darkness: '', light: '', light_status: 'found', comments_disabled: false };
+      editingStoryId = null; submitMode = null; resetDraft();
       toast('Story updated.');
       go('mine');
     } else {
       await api('/api/stories', 'POST', payload);
-      submitDraft = { step: 1, title: '', genre: '', tags: '', darkness: '', light: '', light_status: 'found', comments_disabled: false };
-      toast('Your story has been shared.');
+      submitMode = null; resetDraft();
+      toast('Your story has been shared. Thank you for your courage.');
       go('browse');
     }
   } catch(e) { if (err) err.textContent = e.message; }

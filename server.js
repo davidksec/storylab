@@ -158,11 +158,12 @@ app.get('/api/my-stories', requireAuth, async (req, res) => {
   res.json(out);
 });
 
-app.post('/api/stories', requireAuth, async (req, res) => {
-  const { title, genre, tags, darkness, light, light_status, comments_disabled } = req.body || {};
+app.post('/api/stories', optAuth, async (req, res) => {
+  const { title, genre, tags, darkness, light, light_status, comments_disabled, anon_name } = req.body || {};
   if (!title?.trim() || !darkness?.trim())
     return res.status(400).json({ error: 'Title and story are required' });
-  // Combined body used for search and reading time
+  const author_id   = req.user?.id || null;
+  const author_name = req.user ? req.user.username : (anon_name?.trim().slice(0, 30) || 'Anonymous');
   const body = [darkness, light].filter(Boolean).join('\n\n');
   const s = await db.stories.insertAsync({
     title: title.trim(), body,
@@ -171,7 +172,7 @@ app.post('/api/stories', requireAuth, async (req, res) => {
     light_status: light_status || 'searching',
     genre: genre || '', tags: tags || [],
     comments_disabled: comments_disabled ? true : false,
-    author_id: req.user.id, author_name: req.user.username,
+    author_id, author_name,
     created_at: new Date().toISOString(),
   });
   res.json({ id: s._id });
@@ -185,6 +186,27 @@ app.patch('/api/stories/:id/toggle-comments', requireAuth, async (req, res) => {
   const newVal = !story.comments_disabled;
   await db.stories.updateAsync({ _id: req.params.id }, { $set: { comments_disabled: newVal } }, {});
   res.json({ comments_disabled: newVal });
+});
+
+app.patch('/api/stories/:id', requireAuth, async (req, res) => {
+  const story = await db.stories.findOneAsync({ _id: req.params.id });
+  if (!story) return res.status(404).json({ error: 'Not found' });
+  if (story.author_id !== req.user.id && !req.user.is_admin)
+    return res.status(403).json({ error: 'Forbidden' });
+  const { title, genre, tags, darkness, light, light_status, comments_disabled } = req.body || {};
+  if (!title?.trim() || !darkness?.trim())
+    return res.status(400).json({ error: 'Title and story are required' });
+  const body = [darkness, light].filter(Boolean).join('\n\n');
+  await db.stories.updateAsync({ _id: req.params.id }, { $set: {
+    title: title.trim(), body,
+    darkness: darkness.trim(),
+    light: (light || '').trim(),
+    light_status: light_status || 'searching',
+    genre: genre || '', tags: tags || [],
+    comments_disabled: comments_disabled ? true : false,
+    updated_at: new Date().toISOString(),
+  }}, {});
+  res.json({ id: req.params.id });
 });
 
 app.delete('/api/stories/:id', requireAuth, async (req, res) => {

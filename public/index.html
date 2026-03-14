@@ -368,9 +368,11 @@ let page     = 'browse';
 let readerId = null;
 let triggers = JSON.parse(localStorage.getItem('sl_triggers') || '[]');
 let searchQ  = '';
-let authTab   = 'login';
-let adminTab  = 'users';
-let browsePage = 1;
+let authTab      = 'login';
+let adminTab     = 'users';
+let adminUserQ   = '';
+let adminUserPage = 1;
+let browsePage   = 1;
 let submitMode  = null; // null | 'easy' | 'guided'
 let submitDraft = {
   step: 1, title: '', genre: '', tags: '',
@@ -985,7 +987,7 @@ async function submitEasyStory() {
 // ── Guided Mode ───────────────────────────────────────────
 function renderGuidedStep() {
   const s    = submitDraft;
-  const STEPS = ['Your Story', 'The Challenge', 'Finding Light', 'Review & Share'];
+  const STEPS = ['The Basics', 'The Challenge', 'The Experience', 'Review & Share'];
 
   const progress = `
     <div class="step-progress">
@@ -1005,52 +1007,51 @@ function renderGuidedStep() {
 
   if (s.step === 1) {
     body = `
-      <div class="step-heading">Your Story</div>
-      <div class="step-desc">Let's start with the basics, then we'll walk through some gentle prompts to help you find the words.</div>
+      <div class="step-heading">The Basics</div>
+      <div class="step-desc">Let's start simple — give your story a title and pick a category. That's all we need for now.</div>
       <div class="field"><label>Title *</label>
         <input type="text" id="subTitle" placeholder="What would you call your story?" value="${esc(s.title)}">
       </div>
       <div class="field"><label>Category</label>
         <select id="subGenre"><option value="">— Select a category —</option>${catOpts}</select>
       </div>
-      <div class="field">
-        <label>What challenge did you face? *</label>
-        <textarea id="subChallenge" placeholder="Describe what happened. Be as specific or general as you're comfortable with…" style="min-height:260px">${esc(s.challenge)}</textarea>
-      </div>
-      ${tip('Write as much or as little as feels right. There are no wrong answers here.')}`;
+      ${tip('You can always come back and edit your story after publishing.')}`;
 
   } else if (s.step === 2) {
+    body = `
+      <div class="step-heading">The Challenge</div>
+      <div class="step-desc">Tell us what happened. Be as specific or general as you're comfortable with — there are no wrong answers here.</div>
+      <div class="field">
+        <label>What challenge did you face? *</label>
+        <textarea id="subChallenge" placeholder="Describe what happened…" style="min-height:280px">${esc(s.challenge)}</textarea>
+      </div>
+      ${tip('Write as much or as little as feels right. This is your story to tell.')}`;
+
+  } else if (s.step === 3) {
     const found = s.light_status === 'found';
     body = `
       <div class="step-heading" style="color:#e96479">The Experience</div>
-      <div class="step-desc">Let's go a little deeper into how this felt for you.</div>
+      <div class="step-desc">Go a little deeper if you'd like — all of these are optional.</div>
       <div class="field">
         <label>How did it feel at the time? <span style="font-weight:400;text-transform:none">(optional)</span></label>
-        <textarea id="subFeeling" placeholder="Describe the emotions — the weight of it, the moments that felt impossible…" style="min-height:200px">${esc(s.feeling)}</textarea>
+        <textarea id="subFeeling" placeholder="Describe the emotions — the weight of it, the moments that felt impossible…" style="min-height:160px">${esc(s.feeling)}</textarea>
       </div>
-      ${tip('Sharing your feelings helps others feel less alone in theirs. This is completely optional.')}
-      <div>
+      <div style="margin-bottom:1.25rem">
         <label style="margin-bottom:.8rem;display:block">Where are you in your journey?</label>
         <div class="light-toggle">
           <button class="toggle-opt ${found?'sel-found':''}" onclick="setLightStatus('found')">🌅 I've found my light</button>
           <button class="toggle-opt ${!found?'sel-searching':''}" onclick="setLightStatus('searching')">🔍 I'm still searching</button>
         </div>
-      </div>`;
-
-  } else if (s.step === 3) {
-    const found = s.light_status === 'found';
-    body = `
-      <div class="step-heading" style="color:#f0b450">${found ? 'Finding Light' : 'Holding On'}</div>
-      <div class="step-desc">${found ? 'Share what helped you through it — your path forward.' : 'Even in the hardest times, there are things we hold on to.'}</div>
+      </div>
       <div class="field">
         <label>${found ? 'What helped you through it?' : 'What are you holding on to?'} <span style="font-weight:400;text-transform:none">(optional)</span></label>
-        <textarea id="subHelped" placeholder="${found ? 'What changed? What helped? What would you tell someone still in the dark?' : 'What keeps you going? What small things bring you comfort or hope?'}" style="min-height:180px">${esc(s.helped)}</textarea>
+        <textarea id="subHelped" placeholder="${found ? 'What changed? What helped? What would you tell someone still in the dark?' : 'What keeps you going? What small things bring you comfort or hope?'}" style="min-height:140px">${esc(s.helped)}</textarea>
       </div>
       <div class="field">
         <label>What would you tell someone going through this? <span style="font-weight:400;text-transform:none">(optional)</span></label>
-        <textarea id="subAdvice" placeholder="Any words of wisdom, comfort or solidarity for someone facing the same thing…" style="min-height:140px">${esc(s.advice)}</textarea>
+        <textarea id="subAdvice" placeholder="Any words of wisdom, comfort or solidarity for someone facing the same thing…" style="min-height:120px">${esc(s.advice)}</textarea>
       </div>
-      ${tip('Even a single sentence can be life-changing for someone else. Both fields are optional.')}`;
+      ${tip('Sharing your feelings helps others feel less alone in theirs. Everything here is completely optional.')}`;
 
   } else if (s.step === 4) {
     const darkness_p = [s.challenge, s.feeling].filter(Boolean).join('\n\n');
@@ -1124,16 +1125,16 @@ function setLightStatus(status) {
 function guidedNext() {
   const s = submitDraft;
   if (s.step === 1) {
-    s.title     = document.getElementById('subTitle').value.trim();
-    s.challenge = document.getElementById('subChallenge').value.trim();
-    if (!s.title)     { toast('Please give your story a title.', 'err'); return; }
-    if (!s.challenge) { toast('Please describe the challenge you faced.', 'err'); return; }
+    s.title = document.getElementById('subTitle').value.trim();
     s.genre = document.getElementById('subGenre').value;
+    if (!s.title) { toast('Please give your story a title.', 'err'); return; }
   } else if (s.step === 2) {
-    s.feeling = document.getElementById('subFeeling')?.value.trim() || '';
+    s.challenge = document.getElementById('subChallenge').value.trim();
+    if (!s.challenge) { toast('Please describe the challenge you faced.', 'err'); return; }
   } else if (s.step === 3) {
-    s.helped = document.getElementById('subHelped')?.value.trim() || '';
-    s.advice = document.getElementById('subAdvice')?.value.trim() || '';
+    s.feeling = document.getElementById('subFeeling')?.value.trim() || '';
+    s.helped  = document.getElementById('subHelped')?.value.trim()  || '';
+    s.advice  = document.getElementById('subAdvice')?.value.trim()  || '';
   }
   s.step++;
   renderGuidedStep();
@@ -1142,9 +1143,13 @@ function guidedNext() {
 
 function guidedBack() {
   const s = submitDraft;
-  if (s.step === 2) s.feeling = document.getElementById('subFeeling')?.value ?? s.feeling;
-  if (s.step === 3) { s.helped = document.getElementById('subHelped')?.value ?? s.helped; s.advice = document.getElementById('subAdvice')?.value ?? s.advice; }
-  if (s.step === 4) { s.tags = document.getElementById('subTags')?.value ?? s.tags; }
+  if (s.step === 2) s.challenge = document.getElementById('subChallenge')?.value ?? s.challenge;
+  if (s.step === 3) {
+    s.feeling = document.getElementById('subFeeling')?.value ?? s.feeling;
+    s.helped  = document.getElementById('subHelped')?.value  ?? s.helped;
+    s.advice  = document.getElementById('subAdvice')?.value  ?? s.advice;
+  }
+  if (s.step === 4) s.tags = document.getElementById('subTags')?.value ?? s.tags;
   if (s.step === 1 && !editingStoryId) { submitMode = null; render(); return; }
   s.step--;
   renderGuidedStep();
@@ -1262,7 +1267,7 @@ async function renderAdmin() {
     <div class="card">
       <h2>Admin Panel</h2>
       <div class="admin-tabs">
-        <button class="admin-tab ${adminTab==='users'?'active':''}"   onclick="adminTab='users';renderAdmin()">Users</button>
+        <button class="admin-tab ${adminTab==='users'?'active':''}"   onclick="adminTab='users';adminUserQ='';adminUserPage=1;renderAdmin()">Users</button>
         <button class="admin-tab ${adminTab==='stories'?'active':''}" onclick="adminTab='stories';renderAdmin()">All Stories</button>
         <button class="admin-tab ${adminTab==='reports'?'active':''}" onclick="adminTab='reports';renderAdmin()" id="adminReportsTab">Reports</button>
       </div>
@@ -1279,22 +1284,44 @@ async function renderAdmin() {
 
   try {
     if (adminTab === 'users') {
-      const users = await api('/api/admin/users');
-      document.getElementById('adminContent').innerHTML = users.map(u => `
-        <div class="manage-row">
-          <div class="info">
-            <h4>${esc(u.username)} ${u.is_admin ? '<span style="color:var(--warn);font-size:.75rem">⚡ Admin</span>' : ''}</h4>
-            <p>
-              ${u.email ? `✉ ${esc(u.email)} · ` : '<span style="color:var(--accent2)">No email · </span>'}
-              Joined ${fmtDate(u.joined)} · ${u.story_count} stor${u.story_count===1?'y':'ies'}
-            </p>
-          </div>
-          <div class="actions">
-            <button class="btn btn-ghost btn-sm" onclick="adminResetPassword('${u.id}','${esc(u.username)}')">Reset Password</button>
-            ${!u.is_admin ? `<button class="btn btn-ghost btn-sm" onclick="promoteUser('${u.id}')">Make Admin</button>` : ''}
-            ${u.id !== user.id ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Delete</button>` : '<span style="font-size:.75rem;color:var(--muted)">(you)</span>'}
-          </div>
-        </div>`).join('') || '<div class="empty"><div class="icon">👤</div><div>No users found.</div></div>';
+      async function fetchAndRenderUsers() {
+        const params = new URLSearchParams({ page: adminUserPage, limit: 25 });
+        if (adminUserQ) params.set('q', adminUserQ);
+        const { users, total, page: pg, pages } = await api(`/api/admin/users?${params}`);
+        const list = users.map(u => `
+          <div class="manage-row">
+            <div class="info">
+              <h4>${esc(u.username)} ${u.is_admin ? '<span style="color:var(--warn);font-size:.75rem">⚡ Admin</span>' : ''}</h4>
+              <p>
+                ${u.email ? `✉ ${esc(u.email)} · ` : '<span style="color:var(--accent2)">No email · </span>'}
+                Joined ${fmtDate(u.joined)} · ${u.story_count} stor${u.story_count===1?'y':'ies'}
+              </p>
+            </div>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm" onclick="adminResetPassword('${u.id}','${esc(u.username)}')">Reset Password</button>
+              ${!u.is_admin ? `<button class="btn btn-ghost btn-sm" onclick="promoteUser('${u.id}')">Make Admin</button>` : ''}
+              ${u.id !== user.id ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Delete</button>` : '<span style="font-size:.75rem;color:var(--muted)">(you)</span>'}
+            </div>
+          </div>`).join('') || '<div class="empty"><div class="icon">👤</div><div>No users match.</div></div>';
+        const pagination = pages > 1 ? `
+          <div style="display:flex;align-items:center;gap:.5rem;margin-top:1rem;font-size:.85rem;color:var(--muted)">
+            <button class="btn btn-ghost btn-sm" onclick="adminUserPage--;window._fetchUsers()" ${pg<=1?'disabled':''}>← Prev</button>
+            <span>Page ${pg} of ${pages} &nbsp;·&nbsp; ${total} user${total===1?'':'s'}</span>
+            <button class="btn btn-ghost btn-sm" onclick="adminUserPage++;window._fetchUsers()" ${pg>=pages?'disabled':''}>Next →</button>
+          </div>` : `<p style="font-size:.8rem;color:var(--muted);margin-top:.75rem">${total} user${total===1?'':'s'}</p>`;
+        document.getElementById('adminUserList').innerHTML = list + pagination;
+      }
+      window._fetchUsers = fetchAndRenderUsers;
+
+      document.getElementById('adminContent').innerHTML = `
+        <div style="margin-bottom:1rem">
+          <input id="userSearch" type="text" value="${esc(adminUserQ)}" placeholder="Search by username or email…"
+            style="width:100%;padding:.6rem .9rem;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:var(--text);font-size:.9rem"
+            oninput="clearTimeout(window._uSearchT);window._uSearchT=setTimeout(()=>{adminUserQ=this.value.trim();adminUserPage=1;window._fetchUsers();},300)">
+        </div>
+        <div id="adminUserList"><div class="empty"><div class="icon">⏳</div><div>Loading…</div></div></div>`;
+      setTimeout(() => document.getElementById('userSearch')?.focus(), 50);
+      await fetchAndRenderUsers();
     } else if (adminTab === 'stories') {
       const { stories } = await api('/api/stories?limit=1000');
       document.getElementById('adminContent').innerHTML = stories.map(s => `

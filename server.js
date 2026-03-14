@@ -337,13 +337,40 @@ app.delete('/api/admin/reports/:id/delete-content', requireAuth, requireAdmin, a
 
 // ── Admin ─────────────────────────────────────────────────
 app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
-  const list = await db.users.findAsync({});
-  const stories = await db.stories.findAsync({});
-  res.json(list.map(u => ({
-    id: u._id, username: u.username, is_admin: u.is_admin,
-    email: u.email || '', joined: u.joined,
-    story_count: stories.filter(s => s.author_id === u._id).length,
-  })));
+  const { q, page, limit } = req.query;
+  const pageSize = Math.min(parseInt(limit) || 25, 100);
+  const pageNum  = Math.max(1, parseInt(page) || 1);
+  const offset   = (pageNum - 1) * pageSize;
+
+  const query = {};
+  if (q?.trim()) {
+    // Escape regex special chars to prevent ReDoS
+    const safe = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re   = new RegExp(safe, 'i');
+    query.$or  = [{ username: re }, { email: re }];
+  }
+
+  const [total, list] = await Promise.all([
+    db.users.countAsync(query),
+    db.users.find(query).sort({ joined: -1 }).skip(offset).limit(pageSize).execAsync(),
+  ]);
+
+  // Only count stories for users on this page — not the entire table
+  const userIds  = list.map(u => u._id);
+  const stories  = userIds.length ? await db.stories.findAsync({ author_id: { $in: userIds } }) : [];
+  const countMap = {};
+  stories.forEach(s => { countMap[s.author_id] = (countMap[s.author_id] || 0) + 1; });
+
+  res.json({
+    users: list.map(u => ({
+      id: u._id, username: u.username, is_admin: u.is_admin,
+      email: u.email || '', joined: u.joined,
+      story_count: countMap[u._id] || 0,
+    })),
+    total,
+    page: pageNum,
+    pages: Math.ceil(total / pageSize) || 1,
+  });
 });
 
 app.delete('/api/admin/users/:id', requireAuth, requireAdmin, async (req, res) => {

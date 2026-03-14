@@ -2,8 +2,12 @@ const express   = require('express');
 const Datastore = require('@seald-io/nedb');
 const bcrypt    = require('bcryptjs');
 const jwt       = require('jsonwebtoken');
+const crypto    = require('crypto');
 const fs        = require('fs');
 const path      = require('path');
+const { Resend } = require('resend');
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 const app    = express();
 const SECRET = process.env.JWT_SECRET || 'sl-secret-change-in-production';
@@ -13,11 +17,12 @@ fs.mkdirSync('data', { recursive: true });
 
 // Datastores (each saves to its own flat file)
 const db = {
-  users:    new Datastore({ filename: 'data/users.db',    autoload: true }),
-  stories:  new Datastore({ filename: 'data/stories.db',  autoload: true }),
-  votes:    new Datastore({ filename: 'data/votes.db',    autoload: true }),
-  comments: new Datastore({ filename: 'data/comments.db', autoload: true }),
-  reports:  new Datastore({ filename: 'data/reports.db',  autoload: true }),
+  users:        new Datastore({ filename: 'data/users.db',        autoload: true }),
+  stories:      new Datastore({ filename: 'data/stories.db',      autoload: true }),
+  votes:        new Datastore({ filename: 'data/votes.db',        autoload: true }),
+  comments:     new Datastore({ filename: 'data/comments.db',     autoload: true }),
+  reports:      new Datastore({ filename: 'data/reports.db',      autoload: true }),
+  reset_tokens: new Datastore({ filename: 'data/reset_tokens.db', autoload: true }),
 };
 
 db.users.ensureIndex({ fieldName: 'username', unique: true });
@@ -365,6 +370,61 @@ app.patch('/api/admin/users/:id/reset-password', requireAuth, requireAdmin, asyn
     return res.status(400).json({ error: 'New password must be at least 6 characters' });
   const hash = bcrypt.hashSync(new_password, 10);
   await db.users.updateAsync({ _id: req.params.id }, { $set: { password: hash } }, {});
+  res.json({ ok: true });
+});
+
+// ── Password Reset ────────────────────────────────────────
+app.post('/api/forgot-password', async (req, res) => {
+  const { email } = req.body || {};
+  // Always 200 — don't reveal whether the email exists
+  if (!email?.trim() || !resend) return res.json({ ok: true });
+
+  const user = await db.users.findOneAsync({ email: email.trim().toLowerCase() });
+  if (!user?.email) return res.json({ ok: true });
+
+  const token     = crypto.randomBytes(32).toString('hex');
+  const expires_at = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+  await db.reset_tokens.removeAsync({ user_id: user._id }, { multi: true });
+  await db.reset_tokens.insertAsync({ user_id: user._id, token, expires_at });
+
+  const appUrl    = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+  const resetLink = `${appUrl}/?reset=${token}`;
+
+  await resend.emails.send({
+    from:    process.env.RESEND_FROM || 'StoryLab <onboarding@resend.dev>',
+    to:      user.email,
+    subject: 'Reset your StoryLab password',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#1a0a00">Reset your password</h2>
+        <p>Hi <strong>${user.username}</strong>,</p>
+        <p>Someone requested a password reset for your StoryLab account. Click the button below to set a new password.</p>
+        <p style="margin:2rem 0">
+          <a href="${resetLink}" style="display:inline-block;padding:12px 28px;background:#c8a96e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Reset my password</a>
+        </p>
+        <p style="color:#888;font-size:.85em">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:2rem 0">
+        <p style="color:#aaa;font-size:.8em">— The StoryLab team</p>
+      </div>
+    `,
+  });
+
+  res.json({ ok: true });
+});
+
+app.post('/api/reset-password', async (req, res) => {
+  const { token, new_password } = req.body || {};
+  if (!token || !new_password || new_password.length < 6)
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+
+  const record = await db.reset_tokens.findOneAsync({ token });
+  if (!record) return res.status(400).json({ error: 'Invalid or expired reset link' });
+  if (new Date(record.expires_at) < new Date())
+    return res.status(400).json({ error: 'Reset link has expired — please request a new one' });
+
+  const hash = bcrypt.hashSync(new_password, 10);
+  await db.users.updateAsync({ _id: record.user_id }, { $set: { password: hash } }, {});
+  await db.reset_tokens.removeAsync({ token }, {});
   res.json({ ok: true });
 });
 

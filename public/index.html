@@ -381,6 +381,7 @@ let submitDraft = {
   comments_disabled: false,
 };
 let editingStoryId = null;
+let resetToken     = null;
 
 const COMMON_TAGS = ['grief','healing','recovery','hope','loss','trauma','anxiety','depression','sobriety','family','abuse','childhood','relationships','divorce','loneliness','growth','faith','strength','resilience','addiction','self-worth','forgiveness'];
 const CATEGORIES  = ['Trauma','Addiction','Depression','Injury','Recovery','Relationship','Family','Friendship','Other'];
@@ -412,6 +413,7 @@ function render() {
     case 'submit': renderSubmit(); break;
     case 'mine':   renderMine();   break;
     case 'admin':  renderAdmin();  break;
+    case 'reset':  renderReset();  break;
   }
 }
 
@@ -1396,12 +1398,23 @@ function switchAuthTab(tab) {
       <div class="field"><label>Username</label><input type="text" id="authUser" placeholder="Your username"></div>
       <div class="field"><label>Password</label><input type="password" id="authPass" placeholder="Your password" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <div id="authErr" class="error-msg" style="margin-bottom:.8rem"></div>
-      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Login</button>`;
+      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Login</button>
+      <p style="text-align:center;margin-top:.85rem;font-size:.83rem"><a onclick="switchAuthTab('forgot')" style="cursor:pointer;color:var(--accent)">Forgot your password?</a></p>`;
+  } else if (tab === 'forgot') {
+    content.innerHTML = `
+      <p class="modal-title">Reset password</p>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem">Enter the email address on your account and we'll send you a reset link.</p>
+      <div class="field"><label>Email</label><input type="email" id="authEmail" placeholder="your@email.com" onkeydown="if(event.key==='Enter')doForgotPassword()"></div>
+      <div id="authErr" class="error-msg" style="margin-bottom:.8rem"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="doForgotPassword()">Send reset link</button>
+      <p style="text-align:center;margin-top:.85rem;font-size:.83rem"><a onclick="switchAuthTab('login')" style="cursor:pointer;color:var(--accent)">Back to login</a></p>`;
+    setTimeout(() => document.getElementById('authEmail')?.focus(), 50);
+    return;
   } else {
     content.innerHTML = `
       <p class="modal-title">Create an account</p>
       <div class="field"><label>Username</label><input type="text" id="authUser" placeholder="Choose a username (min 3 chars)"></div>
-      <div class="field"><label>Email <span style="font-weight:400;text-transform:none">(optional — for future password reset)</span></label><input type="text" id="authEmail" placeholder="your@email.com"></div>
+      <div class="field"><label>Email <span style="font-weight:400;text-transform:none">(optional — for password reset)</span></label><input type="text" id="authEmail" placeholder="your@email.com"></div>
       <div class="field"><label>Password</label><input type="password" id="authPass" placeholder="Choose a password (min 6 chars)" onkeydown="if(event.key==='Enter')doRegister()"></div>
       <div id="authErr" class="error-msg" style="margin-bottom:.8rem"></div>
       <button class="btn btn-primary" style="width:100%" onclick="doRegister()">Create Account</button>
@@ -1437,6 +1450,51 @@ async function doRegister() {
   } catch(e) { err.textContent = e.message; }
 }
 
+async function doForgotPassword() {
+  const email = document.getElementById('authEmail').value.trim();
+  const err   = document.getElementById('authErr');
+  if (!email) { err.textContent = 'Please enter your email address.'; return; }
+  try {
+    await api('/api/forgot-password', 'POST', { email });
+    document.getElementById('modalContent').innerHTML = `
+      <p class="modal-title">Check your inbox</p>
+      <p style="color:var(--muted);font-size:.9rem;line-height:1.6">If an account with that email exists, we've sent a reset link. It expires in 1 hour — also check your spam folder.</p>
+      <button class="btn btn-ghost" style="width:100%;margin-top:1.25rem" onclick="switchAuthTab('login')">Back to login</button>`;
+  } catch(e) { err.textContent = e.message; }
+}
+
+function renderReset() {
+  document.getElementById('main').innerHTML = `
+    <div style="max-width:420px;margin:5rem auto;padding:2rem">
+      <h2 style="font-family:var(--serif);margin-bottom:.5rem">Set a new password</h2>
+      <p style="color:var(--muted);margin-bottom:1.5rem;font-size:.9rem">Choose a new password for your account.</p>
+      <div class="field"><label>New password</label><input type="password" id="resetPass" placeholder="At least 6 characters"></div>
+      <div class="field"><label>Confirm password</label><input type="password" id="resetPass2" placeholder="Repeat password" onkeydown="if(event.key==='Enter')doResetPassword()"></div>
+      <div id="resetErr" class="error-msg" style="margin-bottom:.8rem"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="doResetPassword()">Set new password</button>
+    </div>`;
+}
+
+async function doResetPassword() {
+  const p1  = document.getElementById('resetPass').value;
+  const p2  = document.getElementById('resetPass2').value;
+  const err = document.getElementById('resetErr');
+  if (p1.length < 6) { err.textContent = 'Password must be at least 6 characters.'; return; }
+  if (p1 !== p2)     { err.textContent = 'Passwords do not match.'; return; }
+  try {
+    await api('/api/reset-password', 'POST', { token: resetToken, new_password: p1 });
+    history.replaceState({}, '', '/');
+    resetToken = null;
+    document.getElementById('main').innerHTML = `
+      <div style="max-width:420px;margin:5rem auto;padding:2rem;text-align:center">
+        <div style="font-size:3rem;margin-bottom:1rem">✓</div>
+        <h2 style="font-family:var(--serif)">Password updated!</h2>
+        <p style="color:var(--muted);margin:.5rem 0 1.5rem">You can now log in with your new password.</p>
+        <button class="btn btn-primary" onclick="go('browse');openModal()">Log in</button>
+      </div>`;
+  } catch(e) { err.textContent = e.message; }
+}
+
 function saveAuth(data) {
   token = data.token;
   user  = { id: data.id, username: data.username, is_admin: data.is_admin };
@@ -1453,6 +1511,11 @@ function logout() {
 }
 
 // ── Boot ──────────────────────────────────────────────────
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const rt = params.get('reset');
+  if (rt) { resetToken = rt; page = 'reset'; }
+})();
 render();
 </script>
 </body>

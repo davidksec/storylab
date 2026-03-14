@@ -23,6 +23,7 @@ const db = {
   comments:     new Datastore({ filename: 'data/comments.db',     autoload: true }),
   reports:      new Datastore({ filename: 'data/reports.db',      autoload: true }),
   reset_tokens: new Datastore({ filename: 'data/reset_tokens.db', autoload: true }),
+  mod_flags:    new Datastore({ filename: 'data/mod_flags.db',    autoload: true }),
 };
 
 db.users.ensureIndex({ fieldName: 'username', unique: true });
@@ -51,6 +52,20 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function requireMod(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  if (!req.user.is_admin && (req.user.mod_level || 0) < 1)
+    return res.status(403).json({ error: 'Moderator access required' });
+  next();
+}
+
+function requireSuperMod(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  if (!req.user.is_admin && (req.user.mod_level || 0) < 2)
+    return res.status(403).json({ error: 'Super moderator access required' });
+  next();
+}
+
 // ── Register ──────────────────────────────────────────────
 app.post('/api/register', async (req, res) => {
   const { username, password, email } = req.body || {};
@@ -71,7 +86,7 @@ app.post('/api/register', async (req, res) => {
       email: email?.trim().toLowerCase() || '',
       joined: new Date().toISOString().slice(0, 10),
     });
-    const payload = { id: user._id, username: user.username, is_admin: user.is_admin };
+    const payload = { id: user._id, username: user.username, is_admin: user.is_admin, mod_level: 0 };
     res.json({ token: jwt.sign(payload, SECRET, { expiresIn: '30d' }), ...payload });
   } catch (e) {
     if (e.errorType === 'uniqueViolated')
@@ -86,7 +101,7 @@ app.post('/api/login', async (req, res) => {
   const user = await db.users.findOneAsync({ username });
   if (!user || !bcrypt.compareSync(password, user.password))
     return res.status(401).json({ error: 'Invalid username or password' });
-  const payload = { id: user._id, username: user.username, is_admin: user.is_admin };
+  const payload = { id: user._id, username: user.username, is_admin: user.is_admin, mod_level: user.mod_level || 0 };
   res.json({ token: jwt.sign(payload, SECRET, { expiresIn: '30d' }), ...payload });
 });
 
@@ -364,6 +379,7 @@ app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
   res.json({
     users: list.map(u => ({
       id: u._id, username: u.username, is_admin: u.is_admin,
+      mod_level: u.mod_level || 0,
       email: u.email || '', joined: u.joined,
       story_count: countMap[u._id] || 0,
     })),
@@ -397,6 +413,81 @@ app.patch('/api/admin/users/:id/reset-password', requireAuth, requireAdmin, asyn
     return res.status(400).json({ error: 'New password must be at least 6 characters' });
   const hash = bcrypt.hashSync(new_password, 10);
   await db.users.updateAsync({ _id: req.params.id }, { $set: { password: hash } }, {});
+  res.json({ ok: true });
+});
+
+// ── Moderation ────────────────────────────────────────────
+app.post('/api/mod/flag', requireAuth, requireMod, async (req, res) => {
+  const { type, target_id, reason } = req.body || {};
+  if (!type || !target_id || !['story', 'comment'].includes(type))
+    return res.status(400).json({ error: 'Invalid request' });
+
+  const existing = await db.mod_flags.findOneAsync({ target_id, flagger_id: req.user.id });
+  if (existing) return res.status(409).json({ error: 'Already flagged by you' });
+
+  let target_title, target_author, story_id = null;
+  if (type === 'story') {
+    const story = await db.stories.findOneAsync({ _id: target_id });
+    if (!story) return res.status(404).json({ error: 'Not found' });
+    target_title  = story.title;
+    target_author = story.author_name;
+  } else {
+    const comment = await db.comments.findOneAsync({ _id: target_id });
+    if (!comment) return res.status(404).json({ error: 'Not found' });
+    target_title  = comment.body.slice(0, 80);
+    target_author = comment.username;
+    story_id      = comment.story_id;
+  }
+
+  await db.mod_flags.insertAsync({
+    type, target_id, target_title, target_author, story_id,
+    flagger_id: req.user.id, flagger_name: req.user.username,
+    reason: reason?.trim() || '',
+    created_at: new Date().toISOString(),
+  });
+  res.json({ ok: true });
+});
+
+app.get('/api/mod/flags', requireAuth, requireSuperMod, async (req, res) => {
+  const flags = await db.mod_flags.findAsync({});
+  flags.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  res.json(flags.map(f => ({ ...f, id: f._id })));
+});
+
+app.get('/api/mod/my-flags', requireAuth, requireMod, async (req, res) => {
+  const flags = await db.mod_flags.findAsync({ flagger_id: req.user.id });
+  flags.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  res.json(flags.map(f => ({ ...f, id: f._id })));
+});
+
+app.post('/api/mod/flags/:id/approve', requireAuth, requireSuperMod, async (req, res) => {
+  const flag = await db.mod_flags.findOneAsync({ _id: req.params.id });
+  if (!flag) return res.status(404).json({ error: 'Not found' });
+  if (flag.type === 'story') {
+    await Promise.all([
+      db.votes.removeAsync(    { story_id: flag.target_id }, { multi: true }),
+      db.comments.removeAsync( { story_id: flag.target_id }, { multi: true }),
+      db.stories.removeAsync(  { _id:      flag.target_id }, {}),
+      db.mod_flags.removeAsync({ target_id: flag.target_id }, { multi: true }),
+    ]);
+  } else {
+    await Promise.all([
+      db.comments.removeAsync( { _id:       flag.target_id }, {}),
+      db.mod_flags.removeAsync({ target_id: flag.target_id }, { multi: true }),
+    ]);
+  }
+  res.json({ ok: true });
+});
+
+app.delete('/api/mod/flags/:id/dismiss', requireAuth, requireSuperMod, async (req, res) => {
+  await db.mod_flags.removeAsync({ _id: req.params.id }, {});
+  res.json({ ok: true });
+});
+
+app.patch('/api/admin/users/:id/set-mod-level', requireAuth, requireAdmin, async (req, res) => {
+  const { mod_level } = req.body || {};
+  if (![0, 1, 2].includes(mod_level)) return res.status(400).json({ error: 'Invalid mod level' });
+  await db.users.updateAsync({ _id: req.params.id }, { $set: { mod_level } }, {});
   res.json({ ok: true });
 });
 

@@ -372,6 +372,7 @@ let authTab      = 'login';
 let adminTab     = 'users';
 let adminUserQ   = '';
 let adminUserPage = 1;
+let modTab       = 'browse';
 let browsePage   = 1;
 let submitMode  = null; // null | 'easy' | 'guided'
 let submitDraft = {
@@ -415,6 +416,7 @@ function render() {
     case 'submit': renderSubmit(); break;
     case 'mine':   renderMine();   break;
     case 'admin':  renderAdmin();  break;
+    case 'mod':    renderMod();    break;
     case 'reset':  renderReset();  break;
   }
 }
@@ -424,6 +426,22 @@ function renderHeader() {
   document.querySelectorAll('nav button').forEach(b => {
     b.classList.toggle('active', b.dataset.page === page);
   });
+
+  // Mod tab
+  const modBtn = document.querySelector('nav button[data-page=mod]');
+  const isMod  = user?.is_admin || (user?.mod_level || 0) >= 1;
+  if (isMod && !modBtn) {
+    const btn = document.createElement('button');
+    btn.textContent = 'Moderation';
+    btn.dataset.page = 'mod';
+    btn.onclick = () => go('mod');
+    const adminBtnRef = document.querySelector('nav button[data-page=admin]');
+    if (adminBtnRef) document.getElementById('nav').insertBefore(btn, adminBtnRef);
+    else document.getElementById('nav').appendChild(btn);
+  } else if (!isMod && modBtn) {
+    modBtn.remove();
+  }
+  if (modBtn) modBtn.classList.toggle('active', page === 'mod');
 
   // Admin tab
   const adminBtn = document.querySelector('nav button[data-page=admin]');
@@ -441,8 +459,9 @@ function renderHeader() {
   // Auth area
   const area = document.getElementById('authArea');
   if (user) {
+    const badge = user.is_admin ? ' ⚡' : (user.mod_level === 2 ? ' ★' : (user.mod_level === 1 ? ' ◈' : ''));
     area.innerHTML = `
-      <span class="username-chip">${esc(user.username)}${user.is_admin ? ' ⚡' : ''}</span>
+      <span class="username-chip">${esc(user.username)}${badge}</span>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>`;
   } else {
     area.innerHTML = `<button class="btn btn-primary btn-sm" onclick="openModal()">Login / Register</button>`;
@@ -645,6 +664,7 @@ async function renderReader(id) {
               <span style="display:flex;align-items:center;gap:.5rem">
                 <span class="comment-date">${fmtDate(c.created_at)}</span>
                 ${user && user.id !== c.user_id ? `<button class="btn btn-ghost btn-sm" style="color:var(--accent2);border-color:var(--accent2)" onclick="reportComment('${c.id}')">⚑</button>` : ''}
+                ${isModerator() && user.id !== c.user_id ? `<button class="btn btn-ghost btn-sm" style="color:#e96479;border-color:#e96479" onclick="modFlagContent('comment','${c.id}','comment')">🚩</button>` : ''}
                 ${(user && (user.id === c.user_id || user.is_admin)) ? `<button class="btn btn-danger btn-sm" onclick="deleteComment('${c.id}','${s.id}')">Delete</button>` : ''}
               </span>
             </div>
@@ -675,6 +695,7 @@ async function renderReader(id) {
           <button class="btn-icon" onclick="exportTxt('${s.id}')">⬇ Save as TXT</button>
           <button class="btn-icon" onclick="window.print()">🖨 Save as PDF</button>
           ${user && user.id !== s.author_id ? `<button class="btn-icon" onclick="reportStory('${s.id}')" style="margin-left:auto;color:var(--accent2);border-color:var(--accent2)">⚑ Report</button>` : ''}
+          ${isModerator() && user.id !== s.author_id ? `<button class="btn-icon" onclick="modFlagContent('story','${s.id}',${JSON.stringify(esc(s.title))})" style="color:#e96479;border-color:#e96479">🚩 Flag</button>` : ''}
         </div>
 
         <div class="story-section darkness-section">
@@ -1261,6 +1282,103 @@ async function toggleComments(id, currentlyDisabled) {
   } catch(e) { toast(e.message, 'err'); }
 }
 
+// ── Moderation ────────────────────────────────────────────
+function isModerator() {
+  return user?.is_admin || (user?.mod_level || 0) >= 1;
+}
+
+async function modFlagContent(type, targetId, label) {
+  const reason = prompt(`Flag this ${type} for deletion?\n\nReason (optional):`);
+  if (reason === null) return;
+  try {
+    await api('/api/mod/flag', 'POST', { type, target_id: targetId, reason });
+    toast('Flagged for super moderator review.');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function renderMod() {
+  const isSuperMod = user?.is_admin || (user?.mod_level || 0) >= 2;
+  const tabs = [
+    { key: 'browse', label: 'Browse Content' },
+    ...(isSuperMod ? [{ key: 'queue', label: 'Flag Queue' }] : []),
+    { key: 'myflags', label: 'My Flags' },
+  ];
+
+  document.getElementById('app').innerHTML = `
+    <div class="card">
+      <h2>Moderation</h2>
+      <div class="admin-tabs">
+        ${tabs.map(t => `<button class="admin-tab ${modTab===t.key?'active':''}" onclick="modTab='${t.key}';renderMod()">${t.label}</button>`).join('')}
+      </div>
+      <div id="modContent"><div class="empty"><div class="icon">⏳</div><div>Loading…</div></div></div>
+    </div>`;
+
+  try {
+    if (modTab === 'browse') {
+      const { stories } = await api('/api/stories?limit=50');
+      document.getElementById('modContent').innerHTML = `
+        <p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">Showing the 50 most recent stories. Use the 🚩 Flag button on any story or comment in the reader to flag it for review.</p>
+        ${stories.map(s => `
+          <div class="manage-row">
+            <div class="info">
+              <h4>${esc(s.title)}</h4>
+              <p>by ${esc(s.author_name)} · ${s.genre||'—'} · ${fmtDate(s.created_at)}</p>
+            </div>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm" onclick="openStory('${s.id}')">Read & Flag</button>
+            </div>
+          </div>`).join('') || '<div class="empty"><div class="icon">📭</div><div>No stories.</div></div>'}`;
+
+    } else if (modTab === 'queue') {
+      const flags = await api('/api/mod/flags');
+      document.getElementById('modContent').innerHTML = flags.length ? flags.map(f => `
+        <div class="manage-row">
+          <div class="info">
+            <h4 style="display:flex;align-items:center;gap:.5rem">
+              <span style="font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:20px;background:${f.type==='story'?'rgba(124,106,247,.15)':'rgba(233,100,121,.15)'};color:${f.type==='story'?'var(--accent)':'var(--accent2)'}">${f.type.toUpperCase()}</span>
+              ${esc(f.target_title)}${f.type==='comment'?'…':''}
+            </h4>
+            <p>by ${esc(f.target_author)} · Flagged by <strong>${esc(f.flagger_name)}</strong> · ${fmtDate(f.created_at)}${f.reason ? ` · <em>"${esc(f.reason)}"</em>` : ''}</p>
+          </div>
+          <div class="actions">
+            ${f.type==='story' ? `<button class="btn btn-ghost btn-sm" onclick="openStory('${f.target_id}')">View</button>` : ''}
+            <button class="btn btn-primary btn-sm" onclick="modApproveFlag('${f.id}')">Approve & Delete</button>
+            <button class="btn btn-ghost btn-sm" onclick="modDismissFlag('${f.id}')">Dismiss</button>
+          </div>
+        </div>`).join('')
+        : '<div class="empty"><div class="icon">✅</div><div>No flags pending review.</div></div>';
+
+    } else {
+      const flags = await api('/api/mod/my-flags');
+      document.getElementById('modContent').innerHTML = flags.length ? flags.map(f => `
+        <div class="manage-row">
+          <div class="info">
+            <h4 style="display:flex;align-items:center;gap:.5rem">
+              <span style="font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:20px;background:${f.type==='story'?'rgba(124,106,247,.15)':'rgba(233,100,121,.15)'};color:${f.type==='story'?'var(--accent)':'var(--accent2)'}">${f.type.toUpperCase()}</span>
+              ${esc(f.target_title)}${f.type==='comment'?'…':''}
+            </h4>
+            <p>by ${esc(f.target_author)} · Flagged ${fmtDate(f.created_at)}${f.reason ? ` · <em>"${esc(f.reason)}"</em>` : ''}</p>
+          </div>
+        </div>`).join('')
+        : '<div class="empty"><div class="icon">🚩</div><div>You haven\'t flagged anything yet.</div></div>';
+    }
+  } catch(e) {
+    document.getElementById('modContent').innerHTML = `<div class="empty"><div class="icon">⚠️</div><div>${esc(e.message)}</div></div>`;
+  }
+}
+
+async function modApproveFlag(id) {
+  if (!confirm('Approve this flag and permanently delete the content?')) return;
+  try { await api(`/api/mod/flags/${id}/approve`, 'POST'); toast('Content deleted.'); renderMod(); }
+  catch(e) { toast(e.message, 'err'); }
+}
+
+async function modDismissFlag(id) {
+  if (!confirm('Dismiss this flag? The content will remain.')) return;
+  try { await api(`/api/mod/flags/${id}/dismiss`, 'DELETE'); toast('Flag dismissed.'); renderMod(); }
+  catch(e) { toast(e.message, 'err'); }
+}
+
 // ── Admin ─────────────────────────────────────────────────
 async function renderAdmin() {
   document.getElementById('app').innerHTML = `
@@ -1291,15 +1409,25 @@ async function renderAdmin() {
         const list = users.map(u => `
           <div class="manage-row">
             <div class="info">
-              <h4>${esc(u.username)} ${u.is_admin ? '<span style="color:var(--warn);font-size:.75rem">⚡ Admin</span>' : ''}</h4>
+              <h4>${esc(u.username)}
+                ${u.is_admin ? '<span style="color:var(--warn);font-size:.75rem">⚡ Admin</span>' : ''}
+                ${!u.is_admin && u.mod_level===2 ? '<span style="color:#f0b450;font-size:.75rem">★ Super Mod</span>' : ''}
+                ${!u.is_admin && u.mod_level===1 ? '<span style="color:var(--accent);font-size:.75rem">◈ Moderator</span>' : ''}
+              </h4>
               <p>
                 ${u.email ? `✉ ${esc(u.email)} · ` : '<span style="color:var(--accent2)">No email · </span>'}
                 Joined ${fmtDate(u.joined)} · ${u.story_count} stor${u.story_count===1?'y':'ies'}
               </p>
             </div>
             <div class="actions">
-              <button class="btn btn-ghost btn-sm" onclick="adminResetPassword('${u.id}','${esc(u.username)}')">Reset Password</button>
-              ${!u.is_admin ? `<button class="btn btn-ghost btn-sm" onclick="promoteUser('${u.id}')">Make Admin</button>` : ''}
+              <button class="btn btn-ghost btn-sm" onclick="adminResetPassword('${u.id}','${esc(u.username)}')">Reset PW</button>
+              ${!u.is_admin ? `
+                <select class="btn btn-ghost btn-sm" style="cursor:pointer" onchange="adminSetModLevel('${u.id}',+this.value,this)">
+                  <option value="0" ${u.mod_level===0?'selected':''}>No role</option>
+                  <option value="1" ${u.mod_level===1?'selected':''}>Moderator</option>
+                  <option value="2" ${u.mod_level===2?'selected':''}>Super Mod</option>
+                </select>
+                <button class="btn btn-ghost btn-sm" onclick="promoteUser('${u.id}')">Make Admin</button>` : ''}
               ${u.id !== user.id ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Delete</button>` : '<span style="font-size:.75rem;color:var(--muted)">(you)</span>'}
             </div>
           </div>`).join('') || '<div class="empty"><div class="icon">👤</div><div>No users match.</div></div>';
@@ -1366,6 +1494,18 @@ async function promoteUser(id) {
   if (!confirm('Make this user an admin?')) return;
   try { await api(`/api/admin/users/${id}/promote`, 'PATCH'); toast('User promoted to admin.'); renderAdmin(); }
   catch(e) { toast(e.message, 'err'); }
+}
+
+async function adminSetModLevel(id, level, selectEl) {
+  const labels = ['No role', 'Moderator', 'Super Moderator'];
+  try {
+    await api(`/api/admin/users/${id}/set-mod-level`, 'PATCH', { mod_level: level });
+    toast(`Role updated to ${labels[level]}.`);
+    window._fetchUsers?.();
+  } catch(e) {
+    toast(e.message, 'err');
+    window._fetchUsers?.(); // revert select to server state
+  }
 }
 
 async function deleteUser(id) {
@@ -1524,7 +1664,7 @@ async function doResetPassword() {
 
 function saveAuth(data) {
   token = data.token;
-  user  = { id: data.id, username: data.username, is_admin: data.is_admin };
+  user  = { id: data.id, username: data.username, is_admin: data.is_admin, mod_level: data.mod_level || 0 };
   localStorage.setItem('sl_token', token);
   localStorage.setItem('sl_user',  JSON.stringify(user));
 }

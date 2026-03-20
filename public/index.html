@@ -316,6 +316,94 @@
     .word-count-row { font-size: .7rem; color: var(--muted); text-align: right; margin-top: .3rem; }
     .tip-box { background: rgba(200,130,62,.07); border: 1px solid rgba(200,130,62,.18); border-radius: var(--r); padding: .75rem 1rem; font-size: .8rem; color: var(--muted); margin-bottom: 1.4rem; line-height: 1.6; }
 
+    /* ── Welcome banner ──────────────────────── */
+    .welcome-wrap {
+      min-height: calc(100vh - 62px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 3rem 1.5rem;
+    }
+    .welcome-card {
+      max-width: 680px; width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 3.2rem 3.4rem;
+      box-shadow: 0 40px 100px rgba(0,0,0,.55);
+      animation: fadeUp .6s ease both;
+    }
+    .welcome-word {
+      font-family: var(--font-story);
+      font-size: 3.8rem;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      line-height: 1;
+      margin-bottom: .5rem;
+      background: linear-gradient(135deg, var(--accent) 0%, #e8b87a 60%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .welcome-def {
+      font-family: var(--font-story);
+      font-size: .85rem;
+      font-style: italic;
+      color: var(--muted);
+      margin-bottom: 2rem;
+      letter-spacing: .2px;
+    }
+    .welcome-body {
+      font-family: var(--font-story);
+      font-size: 1.08rem;
+      line-height: 1.9;
+      color: #cfc7bb;
+      margin-bottom: 1.6rem;
+    }
+    .welcome-disclaimer {
+      font-size: .78rem;
+      color: var(--muted);
+      line-height: 1.7;
+      padding: .9rem 1.1rem;
+      background: rgba(200,130,62,.05);
+      border: 1px solid rgba(200,130,62,.15);
+      border-radius: var(--r);
+      margin-bottom: 2.2rem;
+    }
+    .welcome-disclaimer strong { color: var(--accent); }
+    .welcome-ctas {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .welcome-cta {
+      display: flex; flex-direction: column; align-items: center;
+      gap: .5rem;
+      padding: 1.5rem 1.2rem;
+      border-radius: var(--r);
+      border: 2px solid var(--border);
+      background: var(--surface2);
+      cursor: pointer;
+      transition: border-color .2s, box-shadow .2s, transform .15s;
+      font-family: var(--font-ui);
+    }
+    .welcome-cta:hover {
+      border-color: var(--accent);
+      box-shadow: 0 6px 32px rgba(200,130,62,.12);
+      transform: translateY(-2px);
+    }
+    .welcome-cta .cta-icon { font-size: 1.8rem; }
+    .welcome-cta .cta-label {
+      font-size: .68rem; font-weight: 700; letter-spacing: .9px;
+      text-transform: uppercase; color: var(--accent);
+    }
+    .welcome-cta .cta-desc {
+      font-size: .79rem; color: var(--muted); text-align: center; line-height: 1.5;
+    }
+    @media (max-width: 520px) {
+      .welcome-card { padding: 2rem 1.4rem; }
+      .welcome-word { font-size: 2.8rem; }
+      .welcome-ctas { grid-template-columns: 1fr; }
+    }
+
     /* ── Print (PDF export) ──────────────────── */
     @media print {
       header, .reader-back, .reader-actions, .comments-section, #toast, .modal-backdrop { display: none !important; }
@@ -412,6 +500,7 @@ function go(p) {
 function render() {
   renderHeader();
   switch (page) {
+    case 'welcome': renderWelcome(); break;
     case 'browse': renderBrowse(); break;
     case 'submit': renderSubmit(); break;
     case 'mine':   renderMine();   break;
@@ -498,6 +587,40 @@ function toast(msg, type = 'ok') {
   el.className = `show ${type}`;
   clearTimeout(el._t);
   el._t = setTimeout(() => el.className = '', 2800);
+}
+
+// ── Welcome ───────────────────────────────────────────────
+function renderWelcome() {
+  document.getElementById('app').innerHTML = `
+    <div class="welcome-wrap">
+      <div class="welcome-card">
+        <div class="welcome-word">Oyming</div>
+        <div class="welcome-def">/ oy·ming / — to move forward, in some kind of way, towards a better future</div>
+
+        <p class="welcome-body">I built this site for people to share their story of how they moved forward from a dark point in their life. Hopefully these stories can reach someone still in darkness and give them some kind of hope or ideas to come to their own state of oyming.<br><br>So please, share your story with us — whether you have found your hope or not. Maybe someone will read your story and have some kind words of encouragement or advice.</p>
+
+        <div class="welcome-disclaimer">
+          <strong>Disclaimer:</strong> Advice given is not guaranteed or from any professional source. Just people helping people. Please report any negative or harmful comments or stories.
+        </div>
+
+        <div class="welcome-ctas">
+          <div class="welcome-cta" onclick="seenWelcome();go('browse')">
+            <span class="cta-icon">📖</span>
+            <span class="cta-label">Read</span>
+            <span class="cta-desc">Browse stories from people who have walked through darkness</span>
+          </div>
+          <div class="welcome-cta" onclick="seenWelcome();go('submit')">
+            <span class="cta-icon">✍️</span>
+            <span class="cta-label">Share</span>
+            <span class="cta-desc">Tell your story — someone out there needs to hear it</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function seenWelcome() {
+  localStorage.setItem('sl_seen', '1');
 }
 
 // ── Browse ────────────────────────────────────────────────
@@ -1682,6 +1805,7 @@ function logout() {
   const params = new URLSearchParams(window.location.search);
   const rt = params.get('reset');
   if (rt) { resetToken = rt; page = 'reset'; }
+  else if (!localStorage.getItem('sl_seen')) { page = 'welcome'; }
 })();
 render();
 </script>

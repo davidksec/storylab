@@ -126,6 +126,9 @@ async function enrich(storyList, userId) {
     author_name:       s.author_name,
     created_at:        s.created_at,
     comments_disabled: s.comments_disabled || false,
+    series_name:       s.series_name || '',
+    series_part:       s.series_part || null,
+    tbc:               s.tbc || false,
     votes:             allVotes.filter(v => v.story_id === s._id).length,
     comment_count:     allComments.filter(c => c.story_id === s._id).length,
     user_voted:        userId ? (allVotes.some(v => v.story_id === s._id && v.user_id === userId) ? 1 : 0) : 0,
@@ -179,7 +182,7 @@ app.get('/api/my-stories', requireAuth, async (req, res) => {
 });
 
 app.post('/api/stories', optAuth, async (req, res) => {
-  const { title, genre, tags, darkness, light, light_status, comments_disabled, anon_name } = req.body || {};
+  const { title, genre, tags, darkness, light, light_status, comments_disabled, anon_name, series_name, series_part, tbc } = req.body || {};
   if (!title?.trim() || !darkness?.trim())
     return res.status(400).json({ error: 'Title and story are required' });
   const author_id   = req.user?.id || null;
@@ -192,6 +195,9 @@ app.post('/api/stories', optAuth, async (req, res) => {
     light_status: light_status || 'searching',
     genre: genre || '', tags: tags || [],
     comments_disabled: comments_disabled ? true : false,
+    series_name: series_name?.trim() || '',
+    series_part: series_part ? parseInt(series_part) : null,
+    tbc:         tbc ? true : false,
     author_id, author_name,
     created_at: new Date().toISOString(),
   });
@@ -213,7 +219,7 @@ app.patch('/api/stories/:id', requireAuth, async (req, res) => {
   if (!story) return res.status(404).json({ error: 'Not found' });
   if (story.author_id !== req.user.id && !req.user.is_admin)
     return res.status(403).json({ error: 'Forbidden' });
-  const { title, genre, tags, darkness, light, light_status, comments_disabled } = req.body || {};
+  const { title, genre, tags, darkness, light, light_status, comments_disabled, series_name, series_part, tbc } = req.body || {};
   if (!title?.trim() || !darkness?.trim())
     return res.status(400).json({ error: 'Title and story are required' });
   const body = [darkness, light].filter(Boolean).join('\n\n');
@@ -224,6 +230,9 @@ app.patch('/api/stories/:id', requireAuth, async (req, res) => {
     light_status: light_status || 'searching',
     genre: genre || '', tags: tags || [],
     comments_disabled: comments_disabled ? true : false,
+    series_name: series_name?.trim() || '',
+    series_part: series_part ? parseInt(series_part) : null,
+    tbc:         tbc ? true : false,
     updated_at: new Date().toISOString(),
   }}, {});
   res.json({ id: req.params.id });
@@ -544,6 +553,23 @@ app.post('/api/reset-password', async (req, res) => {
   await db.users.updateAsync({ _id: record.user_id }, { $set: { password: hash } }, {});
   await db.reset_tokens.removeAsync({ token }, {});
   res.json({ ok: true });
+});
+
+// ── My series names ───────────────────────────────────────
+app.get('/api/my-series', requireAuth, async (req, res) => {
+  const stories = await db.stories.findAsync({ author_id: req.user.id });
+  const names = [...new Set(stories.map(s => s.series_name).filter(Boolean))].sort();
+  res.json(names);
+});
+
+// ── Series ────────────────────────────────────────────────
+app.get('/api/series', optAuth, async (req, res) => {
+  const { name, author_id } = req.query;
+  if (!name || !author_id) return res.status(400).json({ error: 'name and author_id required' });
+  const list = await db.stories.findAsync({ series_name: name, author_id });
+  const out  = await enrich(list, req.user?.id || null);
+  out.sort((a, b) => (a.series_part || 0) - (b.series_part || 0));
+  res.json(out);
 });
 
 // ── Start ─────────────────────────────────────────────────

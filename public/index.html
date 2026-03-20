@@ -316,6 +316,51 @@
     .word-count-row { font-size: .7rem; color: var(--muted); text-align: right; margin-top: .3rem; }
     .tip-box { background: rgba(200,130,62,.07); border: 1px solid rgba(200,130,62,.18); border-radius: var(--r); padding: .75rem 1rem; font-size: .8rem; color: var(--muted); margin-bottom: 1.4rem; line-height: 1.6; }
 
+    /* ── Series ──────────────────────────────── */
+    .series-badge {
+      font-size: .63rem; font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
+      padding: .18rem .62rem; border-radius: 99px;
+      color: #a08be0; border: 1px solid #a08be0;
+      background: rgba(160,139,224,.08); white-space: nowrap; flex-shrink: 0;
+    }
+    .tbc-chip {
+      font-size: .63rem; font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
+      padding: .18rem .62rem; border-radius: 99px;
+      color: var(--warn); border: 1px solid var(--warn);
+      background: rgba(200,160,48,.08); white-space: nowrap; flex-shrink: 0;
+    }
+    .series-nav {
+      border-top: 1px solid var(--border);
+      margin-top: 2.5rem; padding-top: 1.6rem;
+    }
+    .series-nav-label {
+      font-size: .63rem; font-weight: 700; letter-spacing: .9px; text-transform: uppercase;
+      color: var(--muted); margin-bottom: .75rem;
+    }
+    .series-parts { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .series-part-btn {
+      display: inline-flex; align-items: center; gap: .4rem;
+      padding: .45rem 1rem; border-radius: var(--r);
+      border: 1px solid var(--border); background: var(--surface2);
+      font-size: .75rem; font-family: var(--font-ui); cursor: pointer;
+      transition: border-color .2s, background .2s; color: var(--text);
+    }
+    .series-part-btn:hover { border-color: #a08be0; background: rgba(160,139,224,.08); }
+    .series-part-btn.current { border-color: #a08be0; background: rgba(160,139,224,.12); color: #a08be0; cursor: default; }
+    .series-part-btn.tbc-placeholder { border-style: dashed; color: var(--muted); cursor: default; pointer-events: none; }
+    .tbc-banner {
+      margin-top: 1.5rem;
+      padding: .85rem 1.1rem;
+      background: rgba(200,160,48,.07); border: 1px solid rgba(200,160,48,.2);
+      border-radius: var(--r); font-size: .82rem; color: var(--warn); line-height: 1.6;
+    }
+    .series-toggle-row {
+      display: flex; align-items: center; gap: .6rem;
+      margin-bottom: .8rem; cursor: pointer;
+      font-size: .86rem; color: var(--muted); font-weight: 400; letter-spacing: 0; text-transform: none;
+    }
+    .series-fields { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.2rem; margin-top: .4rem; }
+
     /* ── Welcome banner ──────────────────────── */
     .welcome-wrap {
       min-height: calc(100vh - 62px);
@@ -470,6 +515,7 @@ let submitDraft = {
   story: '',
   anon: false, anon_name: '', captcha_a: 0, captcha_b: 0,
   comments_disabled: false,
+  in_series: false, series_name: '', series_part: '', tbc: false,
 };
 let editingStoryId = null;
 let resetToken     = null;
@@ -739,6 +785,8 @@ function storyCard(s, clickable = true) {
         <span class="stat">▲ ${s.votes}</span>
         <span class="stat">💬 ${s.comment_count}</span>
         ${s.light ? `<span class="chip" style="${s.light_status==='found' ? 'border-color:#f0b450;color:#f0b450' : 'border-color:var(--accent);color:var(--accent)'}">${s.light_status==='found' ? '🌅 Light found' : '🔍 Searching'}</span>` : '<span class="chip">🌑 Darkness only</span>'}
+        ${s.series_name ? `<span class="series-badge">📚 ${esc(s.series_name)} · Part ${s.series_part}</span>` : ''}
+        ${s.tbc ? `<span class="tbc-chip">↻ To Be Continued</span>` : ''}
         ${tagChips}
       </div>
     </div>`;
@@ -773,8 +821,16 @@ async function renderReader(id) {
   try {
     const [s, comments] = await Promise.all([
       api(`/api/stories/${id}`),
-      api(`/api/stories/${id}/comments`)
+      api(`/api/stories/${id}/comments`),
     ]);
+
+    // Fetch series parts if this story belongs to one
+    let seriesParts = [];
+    if (s.series_name && s.author_id) {
+      try {
+        seriesParts = await api(`/api/series?name=${encodeURIComponent(s.series_name)}&author_id=${encodeURIComponent(s.author_id)}`);
+      } catch {}
+    }
 
     const votedClass = s.user_voted ? 'voted' : '';
     const tagChips = s.tags?.length ? s.tags.map(t => `<span class="chip">${esc(t)}</span>`).join('') : '';
@@ -829,6 +885,21 @@ async function renderReader(id) {
         <div class="story-section ${s.light_status === 'found' ? 'light-section' : 'searching-section'}">
           <div class="section-label">${s.light_status === 'found' ? '🌅 The Light' : '🔍 Still Searching'}</div>
           <div class="reader-body">${esc(s.light)}</div>
+        </div>` : ''}
+
+        ${s.tbc ? `<div class="tbc-banner">↻ <strong>To Be Continued</strong> — the author plans to add more to this story.</div>` : ''}
+
+        ${seriesParts.length > 1 ? `
+        <div class="series-nav">
+          <div class="series-nav-label">📚 Series — ${esc(s.series_name)}</div>
+          <div class="series-parts">
+            ${seriesParts.map(p => `
+              <button class="series-part-btn ${p.id === s.id ? 'current' : ''}"
+                ${p.id !== s.id ? `onclick="openStory('${p.id}')"` : ''}>
+                Part ${p.series_part} — ${esc(p.title)}
+              </button>`).join('')}
+            ${seriesParts[seriesParts.length - 1].tbc ? `<span class="series-part-btn tbc-placeholder">Part ${(seriesParts[seriesParts.length - 1].series_part || seriesParts.length) + 1} — Coming soon…</span>` : ''}
+          </div>
         </div>` : ''}
 
         <div class="comments-section">
@@ -945,7 +1016,7 @@ function renderSubmit() {
 }
 
 function resetDraft() {
-  submitDraft = { step: 1, title: '', genre: '', tags: '', challenge: '', feeling: '', helped: '', advice: '', light_status: 'searching', story: '', anon: false, anon_name: '', captcha_a: 0, captcha_b: 0, comments_disabled: false };
+  submitDraft = { step: 1, title: '', genre: '', tags: '', challenge: '', feeling: '', helped: '', advice: '', light_status: 'searching', story: '', anon: false, anon_name: '', captcha_a: 0, captcha_b: 0, comments_disabled: false, in_series: false, series_name: '', series_part: '', tbc: false };
 }
 
 // ── Mode selection ────────────────────────────────────────
@@ -1040,6 +1111,8 @@ function renderEasyForm() {
         <div style="font-size:.82rem;color:var(--muted)">Posting as <strong style="color:var(--text)">${esc(user.username)}</strong></div>
       </div>`}
 
+      ${seriesFieldsHtml(s, !!user)}
+
       <div class="field">
         <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;font-size:.86rem;letter-spacing:0;font-weight:400;color:var(--muted)">
           <input type="checkbox" id="easyNoComments" ${s.comments_disabled?'checked':''} style="width:1rem;height:1rem;accent-color:var(--accent)">
@@ -1057,6 +1130,7 @@ function renderEasyForm() {
       <button class="btn btn-primary" style="width:100%;padding:.8rem" onclick="submitEasyStory()">Share My Story</button>
     </div>`;
   easyWC();
+  if (submitDraft.in_series) toggleSeriesFields(true);
 }
 
 function easyWC() {
@@ -1117,7 +1191,9 @@ async function submitEasyStory() {
   }
 
   const tags    = tagsRaw.split(',').map(t=>t.trim()).filter(Boolean);
-  const payload = { title, genre: genre || 'Other', tags, darkness: story, light: '', light_status: 'searching', comments_disabled: noComments };
+  const { in_series, series_name, series_part, tbc } = readSeriesFields();
+  const payload = { title, genre: genre || 'Other', tags, darkness: story, light: '', light_status: 'searching', comments_disabled: noComments,
+    series_name: in_series ? series_name : '', series_part: in_series ? series_part : '', tbc: in_series ? tbc : false };
   if (isAnon) payload.anon_name = anonName;
   err.textContent = '';
   try {
@@ -1159,6 +1235,7 @@ function renderGuidedStep() {
       <div class="field"><label>Category</label>
         <select id="subGenre"><option value="">— Select a category —</option>${catOpts}</select>
       </div>
+      ${seriesFieldsHtml(s, !!user)}
       ${tip('You can always come back and edit your story after publishing.')}`;
 
   } else if (s.step === 2) {
@@ -1257,6 +1334,108 @@ function renderGuidedStep() {
           : `<button class="btn btn-primary" onclick="guidedNext()">Continue →</button>`}
       </div>
     </div>`;
+  if (s.step === 1 && s.in_series) toggleSeriesFields(true);
+}
+
+function seriesFieldsHtml(s, loggedIn) {
+  if (!loggedIn) return '';
+  return `
+    <div class="field">
+      <label class="series-toggle-row">
+        <input type="checkbox" id="seriesToggle" ${s.in_series ? 'checked' : ''} onchange="toggleSeriesFields(this.checked)" style="width:1rem;height:1rem;accent-color:#a08be0;flex-shrink:0">
+        This story is part of a series
+      </label>
+      <div class="series-fields" id="seriesFields" style="display:none">
+        <div style="color:var(--muted);font-size:.8rem">Loading your series…</div>
+      </div>
+    </div>`;
+}
+
+async function toggleSeriesFields(on) {
+  submitDraft.in_series = on;
+  const el = document.getElementById('seriesFields');
+  if (!el) return;
+  if (!on) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.innerHTML = '<div style="color:var(--muted);font-size:.8rem">Loading your series…</div>';
+  let existingSeries = [];
+  try { existingSeries = await api('/api/my-series'); } catch {}
+  renderSeriesFields(el, existingSeries);
+}
+
+function renderSeriesFields(el, existingSeries) {
+  const s = submitDraft;
+  const hasExisting = existingSeries.length > 0;
+  const currentName = s.series_name || '';
+  const isNew = !currentName || !existingSeries.includes(currentName);
+
+  const selectHtml = hasExisting ? `
+    <div class="field" style="margin-bottom:.9rem">
+      <label>Series</label>
+      <select id="seriesSelect" onchange="onSeriesSelectChange(this.value)">
+        ${existingSeries.map(n => `<option value="${esc(n)}" ${n === currentName ? 'selected' : ''}>${esc(n)}</option>`).join('')}
+        <option value="__new__" ${isNew ? 'selected' : ''}>➕ Start a new series…</option>
+      </select>
+    </div>
+    <div class="field" id="newSeriesNameField" style="${isNew ? '' : 'display:none'}margin-bottom:.9rem">
+      <label>New Series Name</label>
+      <input type="text" id="newSeriesNameInput" placeholder="e.g. My Road Back" value="${isNew ? esc(currentName) : ''}" maxlength="60">
+    </div>` : `
+    <div class="field" style="margin-bottom:.9rem">
+      <label>Series Name</label>
+      <input type="text" id="newSeriesNameInput" placeholder="e.g. My Road Back" value="${esc(currentName)}" maxlength="60">
+    </div>`;
+
+  el.innerHTML = `
+    ${selectHtml}
+    <div style="display:flex;gap:.8rem;align-items:flex-end">
+      <div class="field" style="margin-bottom:0">
+        <label>Part Number</label>
+        <input type="number" id="seriesPart" placeholder="1" value="${s.series_part || ''}" min="1" max="999" style="max-width:100px">
+      </div>
+      <div class="field" style="margin-bottom:.15rem">
+        <label class="series-toggle-row">
+          <input type="checkbox" id="seriesTbc" ${s.tbc ? 'checked' : ''} style="width:1rem;height:1rem;accent-color:var(--warn);flex-shrink:0">
+          Mark as "To Be Continued"
+        </label>
+      </div>
+    </div>`;
+
+  // Auto-fill next part for an existing series when part not already set
+  if (hasExisting && !isNew && !s.series_part) onSeriesSelectChange(currentName);
+}
+
+async function onSeriesSelectChange(val) {
+  const newField = document.getElementById('newSeriesNameField');
+  const partEl   = document.getElementById('seriesPart');
+  if (val === '__new__') {
+    if (newField) { newField.style.display = ''; document.getElementById('newSeriesNameInput')?.focus(); }
+    if (partEl && !partEl.value) partEl.value = 1;
+  } else {
+    if (newField) newField.style.display = 'none';
+    if (partEl && !partEl.value && user) {
+      try {
+        const parts   = await api(`/api/series?name=${encodeURIComponent(val)}&author_id=${encodeURIComponent(user.id)}`);
+        const maxPart = parts.length ? Math.max(...parts.map(p => p.series_part || 0)) : 0;
+        partEl.value  = maxPart + 1;
+      } catch {}
+    }
+  }
+}
+
+function readSeriesFields() {
+  const toggle = document.getElementById('seriesToggle');
+  if (!toggle || !toggle.checked) return { in_series: false, series_name: '', series_part: '', tbc: false };
+  const selectEl  = document.getElementById('seriesSelect');
+  const series_name = selectEl
+    ? (selectEl.value === '__new__' ? (document.getElementById('newSeriesNameInput')?.value.trim() || '') : selectEl.value)
+    : (document.getElementById('newSeriesNameInput')?.value.trim() || '');
+  return {
+    in_series:   true,
+    series_name,
+    series_part: document.getElementById('seriesPart')?.value || '',
+    tbc:         document.getElementById('seriesTbc')?.checked || false,
+  };
 }
 
 function setLightStatus(status) {
@@ -1271,6 +1450,7 @@ function guidedNext() {
   if (s.step === 1) {
     s.title = document.getElementById('subTitle').value.trim();
     s.genre = document.getElementById('subGenre').value;
+    Object.assign(s, readSeriesFields());
     if (!s.title) { toast('Please give your story a title.', 'err'); return; }
   } else if (s.step === 2) {
     s.challenge = document.getElementById('subChallenge').value.trim();
@@ -1313,6 +1493,10 @@ async function editStory(id) {
       light_status: s.light_status || 'searching',
       story: '', anon: false, anon_name: '', captcha_a: 0, captcha_b: 0,
       comments_disabled: s.comments_disabled || false,
+      in_series: !!s.series_name,
+      series_name: s.series_name || '',
+      series_part: s.series_part || '',
+      tbc: s.tbc || false,
     };
     go('submit');
   } catch(e) { toast(e.message, 'err'); }
@@ -1329,7 +1513,8 @@ async function submitGuidedStory() {
   const darkness = [s.challenge, s.feeling].filter(Boolean).join('\n\n');
   const light    = [s.helped, s.advice].filter(Boolean).join('\n\n');
   const tags     = s.tags.split(',').map(t=>t.trim()).filter(Boolean);
-  const payload  = { title: s.title, genre: s.genre || 'Other', tags, darkness, light, light_status: s.light_status, comments_disabled: s.comments_disabled };
+  const payload  = { title: s.title, genre: s.genre || 'Other', tags, darkness, light, light_status: s.light_status, comments_disabled: s.comments_disabled,
+    series_name: s.in_series ? s.series_name : '', series_part: s.in_series ? s.series_part : '', tbc: s.in_series ? s.tbc : false };
   try {
     if (editingStoryId) {
       await api(`/api/stories/${editingStoryId}`, 'PATCH', payload);

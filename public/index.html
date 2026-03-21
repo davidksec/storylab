@@ -1549,15 +1549,44 @@ async function renderMine() {
   document.getElementById('app').innerHTML = `<div id="mineShell"><div class="empty"><div class="icon">⏳</div><div>Loading…</div></div></div>`;
 
   try {
-    const stories = await api('/api/my-stories');
+    const [stories, account] = await Promise.all([
+      api('/api/my-stories'),
+      api('/api/account'),
+    ]);
+
+    const emailOn = account.email_notifications;
+    const hasEmail = !!account.email;
+
+    const prefsCard = `
+      <div class="card" style="margin-bottom:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
+          <div>
+            <div style="font-size:.68rem;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:.2rem">Account Preferences</div>
+            <div style="font-size:.82rem;color:var(--muted)">
+              ${hasEmail
+                ? `Emails sent to <strong style="color:var(--text)">${esc(account.email)}</strong>`
+                : `<span style="color:var(--accent2)">No email on file — add one to receive notifications</span>`}
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:.6rem;cursor:${hasEmail ? 'pointer' : 'not-allowed'};font-size:.82rem;color:var(--muted)">
+            <input type="checkbox" id="emailNotifToggle" ${emailOn && hasEmail ? 'checked' : ''} ${!hasEmail ? 'disabled' : ''}
+              onchange="setEmailNotifications(this.checked)"
+              style="width:1rem;height:1rem;accent-color:var(--accent)">
+            Email me when someone comments on my story
+          </label>
+        </div>
+      </div>`;
+
     if (!stories.length) {
       document.getElementById('mineShell').innerHTML = `
+        ${prefsCard}
         <div class="empty"><div class="icon">📝</div><div>You haven't submitted any stories yet.</div><br>
           <button class="btn btn-primary" onclick="go('submit')">Submit your first story</button></div>`;
       return;
     }
 
     document.getElementById('mineShell').innerHTML = `
+      ${prefsCard}
       <div class="card"><h2>My Stories</h2>
         ${stories.map(s => `
           <div class="manage-row">
@@ -1593,6 +1622,18 @@ async function toggleComments(id, currentlyDisabled) {
     toast(comments_disabled ? 'Comments disabled.' : 'Comments enabled.');
     renderMine();
   } catch(e) { toast(e.message, 'err'); }
+}
+
+async function setEmailNotifications(enabled) {
+  try {
+    await api('/api/account/email-notifications', 'PATCH', { enabled });
+    toast(enabled ? 'Comment emails turned on.' : 'Comment emails turned off.');
+  } catch(e) {
+    toast(e.message, 'err');
+    // Revert checkbox on failure
+    const el = document.getElementById('emailNotifToggle');
+    if (el) el.checked = !enabled;
+  }
 }
 
 // ── Moderation ────────────────────────────────────────────

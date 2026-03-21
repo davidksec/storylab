@@ -287,6 +287,38 @@ app.post('/api/stories/:id/comments', optAuth, async (req, res) => {
     created_at: new Date().toISOString(),
   });
   res.json({ ...c, id: c._id });
+
+  // Email notification — fire and forget, does not affect response
+  if (story.author_id && story.author_id !== (req.user?.id || null) && resend) {
+    (async () => {
+      try {
+        const author = await db.users.findOneAsync({ _id: story.author_id });
+        if (!author?.email || author.email_notifications === false) return;
+        const appUrl   = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+        const preview  = body.trim().slice(0, 200) + (body.trim().length > 200 ? '…' : '');
+        await resend.emails.send({
+          from:    process.env.RESEND_FROM || 'StoryLab <onboarding@resend.dev>',
+          to:      author.email,
+          subject: `New comment on "${story.title}"`,
+          html: `
+            <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+              <h2 style="color:#1a0a00">New comment on your story</h2>
+              <p>Hi <strong>${author.username}</strong>,</p>
+              <p><strong>${username}</strong> left a comment on your story <em>"${story.title}"</em>:</p>
+              <blockquote style="border-left:3px solid #c8823e;margin:1.2rem 0;padding:.6rem 1rem;color:#555;font-style:italic;background:#fdf8f3">
+                ${preview}
+              </blockquote>
+              <p style="margin:2rem 0">
+                <a href="${appUrl}" style="display:inline-block;padding:12px 28px;background:#c8823e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Go to StoryLab →</a>
+              </p>
+              <p style="color:#888;font-size:.85em">To turn off comment emails, visit your <strong>My Stories</strong> page and open Account Preferences.</p>
+              <hr style="border:none;border-top:1px solid #eee;margin:2rem 0">
+              <p style="color:#aaa;font-size:.8em">— The StoryLab team</p>
+            </div>`,
+        });
+      } catch {}
+    })();
+  }
 });
 
 app.delete('/api/comments/:id', requireAuth, async (req, res) => {
@@ -554,6 +586,19 @@ app.post('/api/reset-password', async (req, res) => {
   const hash = bcrypt.hashSync(new_password, 10);
   await db.users.updateAsync({ _id: record.user_id }, { $set: { password: hash } }, {});
   await db.reset_tokens.removeAsync({ token }, {});
+  res.json({ ok: true });
+});
+
+// ── Account ───────────────────────────────────────────────
+app.get('/api/account', requireAuth, async (req, res) => {
+  const u = await db.users.findOneAsync({ _id: req.user.id });
+  if (!u) return res.status(404).json({ error: 'Not found' });
+  res.json({ email: u.email || '', email_notifications: u.email_notifications !== false });
+});
+
+app.patch('/api/account/email-notifications', requireAuth, async (req, res) => {
+  const { enabled } = req.body || {};
+  await db.users.updateAsync({ _id: req.user.id }, { $set: { email_notifications: enabled !== false } }, {});
   res.json({ ok: true });
 });
 

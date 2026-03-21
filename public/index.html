@@ -877,6 +877,9 @@ async function renderReader(id) {
           ${isModerator() && user.id !== s.author_id ? `<button class="btn-icon" onclick="modFlagContent('story','${s.id}',${JSON.stringify(esc(s.title))})" style="color:#e96479;border-color:#e96479">🚩 Flag</button>` : ''}
         </div>
 
+        ${s.mode === 'quick' ? `
+        <div class="reader-body">${esc(s.darkness || s.body)}</div>
+        ` : `
         <div class="story-section darkness-section">
           <div class="section-label">🌑 The Darkness</div>
           <div class="reader-body">${esc(s.darkness || s.body)}</div>
@@ -885,7 +888,7 @@ async function renderReader(id) {
         <div class="story-section ${s.light_status === 'found' ? 'light-section' : 'searching-section'}">
           <div class="section-label">${s.light_status === 'found' ? '🌅 The Light' : '🔍 Still Searching'}</div>
           <div class="reader-body">${esc(s.light)}</div>
-        </div>` : ''}
+        </div>` : ''}`}
 
         ${s.tbc ? `<div class="tbc-banner">↻ <strong>To Be Continued</strong> — the author plans to add more to this story.</div>` : ''}
 
@@ -1193,7 +1196,7 @@ async function submitEasyStory() {
   const tags    = tagsRaw.split(',').map(t=>t.trim()).filter(Boolean);
   const { in_series, series_name, series_part, tbc } = readSeriesFields();
   const payload = { title, genre: genre || 'Other', tags, darkness: story, light: '', light_status: 'searching', comments_disabled: noComments,
-    series_name: in_series ? series_name : '', series_part: in_series ? series_part : '', tbc: in_series ? tbc : false };
+    series_name: in_series ? series_name : '', series_part: in_series ? series_part : '', tbc: in_series ? tbc : false, mode: 'quick' };
   if (isAnon) payload.anon_name = anonName;
   err.textContent = '';
   try {
@@ -1516,7 +1519,7 @@ async function submitGuidedStory() {
   const light    = [s.helped, s.advice].filter(Boolean).join('\n\n');
   const tags     = s.tags.split(',').map(t=>t.trim()).filter(Boolean);
   const payload  = { title: s.title, genre: s.genre || 'Other', tags, darkness, light, light_status: s.light_status, comments_disabled: s.comments_disabled,
-    series_name: s.in_series ? s.series_name : '', series_part: s.in_series ? s.series_part : '', tbc: s.in_series ? s.tbc : false };
+    series_name: s.in_series ? s.series_name : '', series_part: s.in_series ? s.series_part : '', tbc: s.in_series ? s.tbc : false, mode: 'guided' };
   try {
     if (editingStoryId) {
       await api(`/api/stories/${editingStoryId}`, 'PATCH', payload);

@@ -129,6 +129,7 @@ async function enrich(storyList, userId) {
     series_name:       s.series_name || '',
     series_part:       s.series_part || null,
     tbc:               s.tbc || false,
+    mode:              s.mode || 'guided',
     votes:             allVotes.filter(v => v.story_id === s._id).length,
     comment_count:     allComments.filter(c => c.story_id === s._id).length,
     user_voted:        userId ? (allVotes.some(v => v.story_id === s._id && v.user_id === userId) ? 1 : 0) : 0,
@@ -182,7 +183,7 @@ app.get('/api/my-stories', requireAuth, async (req, res) => {
 });
 
 app.post('/api/stories', optAuth, async (req, res) => {
-  const { title, genre, tags, darkness, light, light_status, comments_disabled, anon_name, series_name, series_part, tbc } = req.body || {};
+  const { title, genre, tags, darkness, light, light_status, comments_disabled, anon_name, series_name, series_part, tbc, mode } = req.body || {};
   if (!title?.trim() || !darkness?.trim())
     return res.status(400).json({ error: 'Title and story are required' });
   const author_id   = req.user?.id || null;
@@ -198,6 +199,7 @@ app.post('/api/stories', optAuth, async (req, res) => {
     series_name: series_name?.trim() || '',
     series_part: series_part ? parseInt(series_part) : null,
     tbc:         tbc ? true : false,
+    mode:        mode === 'quick' ? 'quick' : 'guided',
     author_id, author_name,
     created_at: new Date().toISOString(),
   });

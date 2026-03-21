@@ -785,7 +785,7 @@ function storyCard(s, clickable = true) {
         <span class="stat">▲ ${s.votes}</span>
         <span class="stat">💬 ${s.comment_count}</span>
         ${s.light ? `<span class="chip" style="${s.light_status==='found' ? 'border-color:#f0b450;color:#f0b450' : 'border-color:var(--accent);color:var(--accent)'}">${s.light_status==='found' ? '🌅 Light found' : '🔍 Searching'}</span>` : '<span class="chip">🌑 Darkness only</span>'}
-        ${s.series_name ? `<span class="series-badge">📚 ${esc(s.series_name)} · Part ${s.series_part}</span>` : ''}
+        ${s.series_name ? `<span class="series-badge">📚 ${esc(s.series_name)}${s.series_part ? ` · Part ${s.series_part}` : ''}</span>` : ''}
         ${s.tbc ? `<span class="tbc-chip">↻ To Be Continued</span>` : ''}
         ${tagChips}
       </div>
@@ -896,7 +896,7 @@ async function renderReader(id) {
             ${seriesParts.map(p => `
               <button class="series-part-btn ${p.id === s.id ? 'current' : ''}"
                 ${p.id !== s.id ? `onclick="openStory('${p.id}')"` : ''}>
-                Part ${p.series_part} — ${esc(p.title)}
+                ${p.series_part ? `Part ${p.series_part} — ` : ''}${esc(p.title)}
               </button>`).join('')}
             ${seriesParts[seriesParts.length - 1].tbc ? `<span class="series-part-btn tbc-placeholder">Part ${(seriesParts[seriesParts.length - 1].series_part || seriesParts.length) + 1} — Coming soon…</span>` : ''}
           </div>
@@ -1366,7 +1366,8 @@ async function toggleSeriesFields(on) {
 function renderSeriesFields(el, existingSeries) {
   const s = submitDraft;
   const hasExisting = existingSeries.length > 0;
-  const currentName = s.series_name || '';
+  // Default to first existing series when no series is pre-selected (new story)
+  const currentName = s.series_name || (hasExisting ? existingSeries[0] : '');
   const isNew = !currentName || !existingSeries.includes(currentName);
 
   const selectHtml = hasExisting ? `
@@ -1401,7 +1402,7 @@ function renderSeriesFields(el, existingSeries) {
       </div>
     </div>`;
 
-  // Auto-fill next part for an existing series when part not already set
+  // Auto-fill next part for an existing series (skip if editing — part already set)
   if (hasExisting && !isNew && !s.series_part) onSeriesSelectChange(currentName);
 }
 
@@ -1413,11 +1414,12 @@ async function onSeriesSelectChange(val) {
     if (partEl && !partEl.value) partEl.value = 1;
   } else {
     if (newField) newField.style.display = 'none';
-    if (partEl && !partEl.value && user) {
+    if (partEl && user) {
       try {
         const parts   = await api(`/api/series?name=${encodeURIComponent(val)}&author_id=${encodeURIComponent(user.id)}`);
-        const maxPart = parts.length ? Math.max(...parts.map(p => p.series_part || 0)) : 0;
+        const maxPart = Math.max(parts.length, ...parts.map(p => p.series_part || 0));
         partEl.value  = maxPart + 1;
+        submitDraft.series_part = String(maxPart + 1);
       } catch {}
     }
   }
@@ -1433,7 +1435,7 @@ function readSeriesFields() {
   return {
     in_series:   true,
     series_name,
-    series_part: document.getElementById('seriesPart')?.value || '',
+    series_part: document.getElementById('seriesPart')?.value || submitDraft.series_part || '1',
     tbc:         document.getElementById('seriesTbc')?.checked || false,
   };
 }

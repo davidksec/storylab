@@ -811,12 +811,13 @@ function removeTrigger(i) {
 // ── Reader ────────────────────────────────────────────────
 async function openStory(id) {
   readerId = id;
+  history.pushState({ story: id }, '', `?story=${id}`);
   await renderReader(id);
 }
 
 async function renderReader(id) {
   const app = document.getElementById('app');
-  app.innerHTML = `<div class="reader-back"><button class="btn btn-ghost" onclick="readerId=null;renderBrowse()">← Back to stories</button></div><div id="readerShell"><div class="empty"><div class="icon">⏳</div><div>Loading…</div></div></div>`;
+  app.innerHTML = `<div class="reader-back"><button class="btn btn-ghost" onclick="readerId=null;history.pushState({},'','?');renderBrowse()">← Back to stories</button></div><div id="readerShell"><div class="empty"><div class="icon">⏳</div><div>Loading…</div></div></div>`;
 
   try {
     const [s, comments] = await Promise.all([
@@ -873,6 +874,8 @@ async function renderReader(id) {
           </button>
           <button class="btn-icon" onclick="exportTxt('${s.id}')">⬇ Save as TXT</button>
           <button class="btn-icon" onclick="window.print()">🖨 Save as PDF</button>
+          <button class="btn-icon" onclick="shareStory('twitter','${s.id}',${JSON.stringify(esc(s.title))})">𝕏 Share</button>
+          <button class="btn-icon" onclick="shareStory('facebook','${s.id}',${JSON.stringify(esc(s.title))})">f Share</button>
           ${user && user.id !== s.author_id ? `<button class="btn-icon" onclick="reportStory('${s.id}')" style="margin-left:auto;color:var(--accent2);border-color:var(--accent2)">⚑ Report</button>` : ''}
           ${isModerator() && user.id !== s.author_id ? `<button class="btn-icon" onclick="modFlagContent('story','${s.id}',${JSON.stringify(esc(s.title))})" style="color:#e96479;border-color:#e96479">🚩 Flag</button>` : ''}
         </div>
@@ -995,6 +998,16 @@ function exportTxt(id) {
   const blob = new Blob([content], { type: 'text/plain' });
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${s.title.replace(/[^a-z0-9]/gi,'_')}.txt` });
   a.click();
+}
+
+function shareStory(platform, id, title) {
+  const url   = `${location.origin}${location.pathname}?story=${id}`;
+  const text  = `"${title}" — a story on StoryLab`;
+  const links = {
+    twitter:  `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+  };
+  window.open(links[platform], '_blank', 'noopener,width=600,height=500');
 }
 
 // ── Submit ────────────────────────────────────────────────
@@ -2035,7 +2048,9 @@ function logout() {
 (function () {
   const params = new URLSearchParams(window.location.search);
   const rt = params.get('reset');
+  const st = params.get('story');
   if (rt) { resetToken = rt; page = 'reset'; }
+  else if (st) { readerId = st; page = 'browse'; localStorage.setItem('sl_seen', '1'); }
   else if (!localStorage.getItem('sl_seen')) { page = 'welcome'; }
 })();
 render();
